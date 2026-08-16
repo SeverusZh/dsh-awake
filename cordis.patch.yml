@@ -1,0 +1,21 @@
+# dsh-awake 安装配置示例
+#
+# 用法：
+#   1. 安装插件（在 profile 目录执行 pnpm add，或直接：
+#      dsh plugin --profile <name> add dsh-awake）
+#   2. 把下面这段 `- insert:` 追加到你的 profile 配置层：
+#      $DSH_HOME/profiles/<name>/cordis.patch.yml
+#      （运行中的 DSH 会热监视该文件，改动立即生效，无需重启）
+#
+# 该文件是一份 YAML 补丁列表：`- insert:` 表示「插入以下插件条目」；
+# `id` 是本配置树中的唯一标识，`name` 是 npm 包名，`config` 是插件配置。
+
+- insert:
+    - id: dsh-awake
+      name: 'dsh-awake'
+      config:
+        enabled: true       # 总开关
+        shellWakeLock: true # 方案B：系统命令防休眠（默认开）
+        powerCfgWakeLock: false # 方案C：电源设置兜底（默认关，用户自行开启；结束时恢复原值）
+        webWakeLock: true   # 方案A 全局默认值，web 端可单独覆盖（浮标点击 / localStorage）
+        why: 'dsh 任务执行中' # systemd-inhibit 的 --why 参数
