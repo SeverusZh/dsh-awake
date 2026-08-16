@@ -9,32 +9,24 @@
  *   - 方案C（powerCfgWakeLock，默认关）：临时修改系统电源设置，
  *     结束时恢复原值（见 plans/power.ts）。
  *
- * 同时向 web 客户端暴露 `/dsh-awake/config` 端点，供方案A
- * （浏览器 Screen Wake Lock，见 src/web/）读取全局默认值。
+ * 配置通过用户设置（settings）暴露：注册 `dsh-awake` 命名空间，用户可在
+ * web 的「插件」设置页里修改（`$DSH_HOME/settings.yaml` 持久化、热生效），
+ * 未挂载 settings 服务时回退到补丁条目里的入口配置。
  */
 
 import type { Context, Logger } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { WAKE_SETTINGS_NAMESPACE, type WakeConfig } from './config.ts'
 import { acquireShellInhibit } from './plans/shell.ts'
 import { acquirePowerInhibit } from './plans/power.ts'
 
 export const name = 'dsh-awake'
 
-export interface Config {
-  /** 总开关：false 时所有方案（含 web 端默认）都不生效。 */
-  enabled: boolean
-  /** 方案B：系统 shell 命令（默认开）。 */
-  shellWakeLock: boolean
-  /** 方案C：电源设置兜底（默认关，需自行开启；结束时会恢复原值）。 */
-  powerCfgWakeLock: boolean
-  /** 方案A 全局默认值：浏览器端可单独覆盖（localStorage）。 */
-  webWakeLock: boolean
-  /** systemd-inhibit 的 --why 参数。 */
-  why: string
-}
+export type { WakeConfig } from './config.ts'
 
-export const Config: Schema<Config> = Schema.object({
+export const Config: Schema<WakeConfig> = Schema.object({
   enabled: Schema.boolean().default(true),
   shellWakeLock: Schema.boolean().default(true),
   powerCfgWakeLock: Schema.boolean().default(false),
@@ -54,15 +46,15 @@ class ShellPlan implements WakePlan {
   private child: { description: string; release(): Promise<void> } | null = null
 
   constructor(
-    private readonly enabled: boolean,
-    private readonly why: string,
+    private readonly getConfig: () => WakeConfig,
     private readonly logger: Logger,
   ) {}
 
   async acquire(): Promise<void> {
-    if (!this.enabled || this.child !== null) return
+    const cfg = this.getConfig()
+    if (!cfg.enabled || !cfg.shellWakeLock || this.child !== null) return
     try {
-      this.child = await acquireShellInhibit(this.why)
+      this.child = await acquireShellInhibit(cfg.why)
       this.logger.info(`方案B（系统命令）已生效：${this.child.description}`)
     } catch (error) {
       this.logger.warn(`方案B（系统命令）不可用，已跳过：${String((error as Error).message)}`)
@@ -86,12 +78,13 @@ class PowerPlan implements WakePlan {
   private snapshot: { description: string; restore(): Promise<void> } | null = null
 
   constructor(
-    private readonly enabled: boolean,
+    private readonly getConfig: () => WakeConfig,
     private readonly logger: Logger,
   ) {}
 
   async acquire(): Promise<void> {
-    if (!this.enabled || this.snapshot !== null) return
+    const cfg = this.getConfig()
+    if (!cfg.enabled || !cfg.powerCfgWakeLock || this.snapshot !== null) return
     try {
       this.snapshot = await acquirePowerInhibit()
       if (this.snapshot === null) {
@@ -118,14 +111,16 @@ class PowerPlan implements WakePlan {
   }
 }
 
-export function apply(ctx: Context, config: Config) {
+export function apply(ctx: Context, config: WakeConfig) {
   const logger = ctx.logger('dsh-awake')
 
-  const plans: WakePlan[] = []
-  if (config.enabled) {
-    plans.push(new ShellPlan(config.shellWakeLock, config.why, logger))
-    plans.push(new PowerPlan(config.powerCfgWakeLock, logger))
-  }
+  // 当前权威配置：settings 挂载后指向设置值，否则指向入口配置。
+  let source: () => WakeConfig = () => config
+
+  const plans: WakePlan[] = [
+    new ShellPlan(() => source(), logger),
+    new PowerPlan(() => source(), logger),
+  ]
 
   // —— 生命周期协调：按「打开中的 turn 总数」做引用计数，跨会话（含子代理）
   //    统一累计；0 -> 1 拿锁，1 -> 0 放锁。事件为同步派发，拿/放锁走一条
@@ -159,7 +154,6 @@ export function apply(ctx: Context, config: Config) {
   }
 
   ctx.on('session/event', (session, event: SessionEvent) => {
-    if (!config.enabled) return
     if (event.type === 'turn/start') {
       openTurns += 1
       if (openTurns === 1) acquire()
@@ -167,6 +161,21 @@ export function apply(ctx: Context, config: Config) {
       if (openTurns > 0) openTurns -= 1
       if (openTurns === 0) release()
     }
+  })
+
+  // 设置变更（用户在「插件」设置页改配置）：若正在值守则按新配置重新对账。
+  const reconcile = () => {
+    if (openTurns <= 0) return
+    release()
+    acquire()
+  }
+
+  // 用户设置命名空间：挂载 settings 服务时注册并接管配置来源；变更热生效。
+  installSettingsSection(ctx, settingsNamespace(WAKE_SETTINGS_NAMESPACE), Config, config, {
+    setSource: (current) => {
+      source = current
+    },
+    onChange: reconcile,
   })
 
   // 插件卸载（热重载 / 退出）时无条件放锁：effect 的 disposer 在 fiber 卸载时运行。
@@ -177,32 +186,7 @@ export function apply(ctx: Context, config: Config) {
     'dsh-awake: 卸载放锁',
   )
 
-  // —— 可选配置端点：给 web 客户端提供方案A 的全局默认值。
-  //    用 ctx.get 探测而非 inject：headless 等无 webServer 的 profile 也能
-  //    正常使用方案B/C，只是没有该端点。
-  let routeRegistered = false
-  const registerConfigRoute = () => {
-    if (routeRegistered) return
-    const webServer = ctx.get('webServer')
-    if (!webServer) return
-    routeRegistered = true
-    ctx.effect(
-      () =>
-        webServer.register({
-          kind: 'exact',
-          path: '/dsh-awake/config',
-          handler: (_req: unknown, res: { writeHead(code: number, headers: Record<string, string>): void; end(body: string): void }) => {
-            res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
-            res.end(JSON.stringify({ enabled: config.enabled, webWakeLock: config.webWakeLock }))
-          },
-        }),
-      'dsh-awake: 配置端点',
-    )
-  }
-  registerConfigRoute()
-  ctx.on('internal/service', (serviceName: string) => {
-    if (serviceName === 'webServer') registerConfigRoute()
-  })
-
-  logger.info(`dsh-awake 已启动：方案B=${config.shellWakeLock ? '开' : '关'}，方案C=${config.powerCfgWakeLock ? '开' : '关'}，webWakeLock=${config.webWakeLock ? '开' : '关'}`)
+  logger.info(
+    `dsh-awake 已启动：方案B=${config.shellWakeLock ? '开' : '关'}，方案C=${config.powerCfgWakeLock ? '开' : '关'}，webWakeLock=${config.webWakeLock ? '开' : '关'}`,
+  )
 }

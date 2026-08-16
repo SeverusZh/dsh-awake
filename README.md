@@ -42,30 +42,41 @@ dsh plugin --profile web add dsh-awake
 | `enabled` | `true` | 总开关；`false` 时全部方案不生效 |
 | `shellWakeLock` | `true` | 方案B：系统 shell 命令防休眠（推荐） |
 | `powerCfgWakeLock` | `false` | 方案C：电源设置兜底（默认关；结束时会恢复原值） |
-| `webWakeLock` | `true` | 方案A 全局默认值；每个浏览器可用浮标单独覆盖 |
+| `webWakeLock` | `true` | 方案A：浏览器 Wake Lock |
 | `why` | `'dsh 任务执行中'` | `systemd-inhibit` 的 `--why` 参数（Linux） |
 
 三个方案可自由组合，全部开启时按 **A+B+C** 同时生效，互不干扰。
+
+### 在哪里改配置：web 的「插件」设置页
+
+插件注册了 `dsh-awake` 设置命名空间，web 端**「设置 → 插件 → 插件配置」**
+里会出现「守夜人（防休眠）」卡片，可随时开关：
+
+- **总开关**、**方案B · 系统命令**、**方案C · 电源设置**、**方案A · 浏览器
+  Wake Lock** 四个开关 + `--why` 参数；
+- 修改点「保存」即写入 `$DSH_HOME/settings.yaml` 并**热生效**（任务进行中
+  也会立即重新对账）；点「恢复默认」可撤销单字段覆盖；
+- 未在设置页修改过时，行为由 `cordis.patch.yml` 里的 `config` 决定
+  （设置页里字段不显示「已覆盖」徽标）。
+
+> 命令行方式等价：编辑 `$DSH_HOME/settings.yaml`，追加
+> `dsh-awake: { webWakeLock: false }` 之类的用户层覆盖即可，同样热生效。
 
 ---
 
 ## 方案说明
 
-### 方案A：浏览器 Wake Lock（仅 web 界面生效）
+### 方案A：浏览器 Wake Lock（仅 web 界面生效，无页面 UI）
 
 - 在支持 [Screen Wake Lock API](https://developer.mozilla.org/docs/Web/API/Screen_Wake_Lock_API)
   的浏览器（Chromium 系、Edge 等）中，任务运行期间申请
   `navigator.wakeLock.request('screen')`，任务结束释放。
 - 页面切到后台时**浏览器会自动释放锁**；插件监听 `visibilitychange`，
   切回前台后若任务仍在运行则**自动重取**。
-- 每个浏览器/页面实例有**独立开关**：点一下左下角浮标即对本浏览器开关
-  （写入 `localStorage` 的 `dsh-awake:webWakeLock`，覆盖全局 `webWakeLock`）；
-  双击浮标恢复「跟随全局默认」。
-- 浮标状态一览：`值守中`（绿点，任务运行中）· `待命`（灰点，无任务）·
-  `页面后台`（橙点，切走时会自动重取）· `防休眠申请失败`（红点）·
-  `防休眠已停用` / `防休眠不可用`。
+- **插件不向页面注入任何可见元素**：方案A 在后台静默运行，开关统一走
+  web 的「插件」设置页（见下节）。
 - 注意：Wake Lock 要求**安全上下文**（https，或本机 `localhost` / `127.0.0.1`）。
-  本机 web GUI 满足条件；手机浏览器场景建议用浮标单独关闭。
+  本机 web GUI 满足条件。
 
 ### 方案B：系统 shell 命令（后台子进程，任务结束 kill 掉）
 
@@ -114,14 +125,15 @@ systemd-inhibit --list   # 应能看到 dsh-awake 的 inhibit 记录
 systemd-inhibit --list   # 记录消失；ps 中不再有 systemd-inhibit / sleep 子进程
 ```
 
-web 端：打开浏览器控制台观察浮标状态；把页面切到后台再切回，锁会自动重取。
+web 端：任务运行期间系统不会休眠；把页面切到后台再切回，Wake Lock 会自动重取
+（可在设置页关闭方案A 验证）。插件不注入任何页面 UI。
 
 ## 常见问题
 
 - **`systemd-inhibit --list` 看不到记录？** 确认系统是 systemd、方案B 已开启、
   且当前确实有任务在运行（`turn/start` 已触发）。
-- **浮标显示「防休眠不可用」？** 浏览器不支持 Wake Lock（Firefox 桌面版等），
-  或页面不是 https / localhost。改用方案B。
+- **方案A 不生效？** 浏览器不支持 Wake Lock（Firefox 桌面版等），或页面不是
+  https / localhost。改用方案B。
 - **方案C 打开后设置没变？** 检查当前桌面是否为 GNOME（Linux），
   以及是否有管理员/root 权限（Windows / macOS）。
 

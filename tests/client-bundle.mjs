@@ -1,8 +1,9 @@
 /**
  * web 客户端半测试：
  *  1. 用假 window.__ModuleLoader__ 加载 lib/client.js，校验导出（inject / apply）；
- *  2. 用假 slots 上下文调用 apply，校验注册到 shell.overlay；
- *  3. 用 mock 注入直接测 WakeLockManager 的状态机（编译产物 wake-lock.js）。
+ *  2. 用假上下文调用 apply，校验：后台防休眠驱动订阅会话与设置；
+ *     设置卡片注册进 settings.plugin.item；
+ *  3. 用 mock 注入直接测 WakeLockManager 状态机（编译产物 wake-lock.js）。
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -19,8 +20,7 @@ const check = (name, ok, extra = '') => {
 }
 
 // —— 1. 加载客户端 bundle ——
-const bundlePath = join(here, '../lib/client.js')
-const bundleSrc = readFileSync(bundlePath, 'utf8')
+const bundleSrc = readFileSync(join(here, '../lib/client.js'), 'utf8')
 check('client bundle 存在', bundleSrc.length > 0)
 
 let loaded = null
@@ -31,82 +31,127 @@ globalThis.window = {
     },
   },
 }
-// 把 bundle 当 CJS 执行：它自带 `window.__ModuleLoader__.load({...})`，注册后不直接执行 factory。
 const code = new Function('window', bundleSrc)
 code(globalThis.window)
 check('bundle 已注册到 __ModuleLoader__', loaded !== null && loaded.id === 'dsh-awake')
 check('bundle 带 factory', typeof loaded?.factory === 'function')
 
-// 执行 factory：externals（react / cordis / ui-slots）从项目 devDeps 解析
 const exportsObj = loaded.factory(require)
 check('factory 导出 apply', typeof exportsObj?.apply === 'function')
-check('factory 导出 inject', Array.isArray(exportsObj?.inject) && exportsObj.inject.includes('slots'))
+check(
+  'factory 导出 inject（slots/settingsScope/sessions）',
+  Array.isArray(exportsObj?.inject) &&
+    ['slots', 'settingsScope', 'sessions'].every((s) => exportsObj.inject.includes(s)),
+  JSON.stringify(exportsObj?.inject),
+)
 
-// —— 2. apply 注册到 shell.overlay ——
-let registered = null
-let injected = false
-const fakeCtx = {
-  slots: {
-    inject(key, callback) {
-      injected = key === 'shell.overlay'
-      // 同步执行回调，返回幂等 disposer
-      const disposer = callback()
-      return () => {}
-    },
-    register(options, component) {
-      registered = { options, component }
-      return () => {}
+// —— 2. apply：后台驱动订阅 + 卡片注册 ——
+const scopeListeners = new Set()
+const scopeSnap = {
+  status: 'ready',
+  value: { enabled: true, shellWakeLock: true, powerCfgWakeLock: false, webWakeLock: true, why: 'x' },
+  base: undefined,
+  user: undefined,
+  revision: 1,
+  writable: true,
+  mode: 'host',
+}
+const fakeScope = {
+  getSnapshot: () => scopeSnap,
+  subscribe: (listener) => {
+    scopeListeners.add(listener)
+    return () => scopeListeners.delete(listener)
+  },
+  set: async (field, value) => {
+    scopeSnap.value = { ...scopeSnap.value, [field]: value }
+  },
+  unset: async (field) => {
+    const copy = { ...scopeSnap.value }
+    delete copy[field]
+    scopeSnap.value = copy
+  },
+}
+
+const sessionListeners = new Set()
+let running = false
+const fakeSessions = {
+  list: {
+    getSnapshot: () => ({ byId: running ? { a: { running: true } } : {} }),
+    subscribe: (listener) => {
+      sessionListeners.add(listener)
+      return () => sessionListeners.delete(listener)
     },
   },
 }
-exportsObj.apply(fakeCtx)
-check('apply 等待 shell.overlay 声明', injected)
-check(
-  'apply 注册守夜人条目',
-  registered?.options?.name === 'shell.overlay' && registered?.options?.id === 'dsh-awake',
-  JSON.stringify(registered?.options),
-)
-check('注册的是 React 组件', typeof registered?.component === 'function')
 
-// —— 3. WakeLockManager 状态机（mock 注入）——
-const { WakeLockManager, WEB_WAKE_LOCK_STORAGE_KEY } = require(join(here, '../lib/types/web/wake-lock.js'))
+let cardRegistered = null
+let injectedSlot = null
+const fakeCtx = {
+  get: (name) => {
+    if (name === 'sessions') return fakeSessions
+    return undefined
+  },
+  settingsScope: {
+    bind: (spec) => {
+      check('settingsScope.bind 绑定 dsh-awake 命名空间', spec.namespace === 'dsh-awake', JSON.stringify(spec))
+      return fakeScope
+    },
+  },
+  slots: {
+    inject(key, callback) {
+      injectedSlot = key
+      callback()
+      return () => {}
+    },
+    register(options, component) {
+      cardRegistered = { options, component }
+      return () => {}
+    },
+  },
+  effect() {
+    return () => {}
+  },
+}
+exportsObj.apply(fakeCtx)
+check('卡片注册进 settings.plugin.item', injectedSlot === 'settings.plugin.item', String(injectedSlot))
+check(
+  '卡片 id 为 dsh-awake',
+  cardRegistered?.options?.id === 'dsh-awake',
+  JSON.stringify(cardRegistered?.options),
+)
+check('卡片是 React 组件', typeof cardRegistered?.component === 'function')
+check('卡片注入面带 scope', typeof cardRegistered?.options?.inject?.()?.scope?.getSnapshot === 'function')
+
+// 后台驱动：会话 running 变化应触发 manager.setTaskActive（通过订阅链验证）
+check('apply 订阅了会话列表', sessionListeners.size === 1)
+check('apply 订阅了设置 scope', scopeListeners.size === 1)
+
+// —— 3. WakeLockManager 状态机（mock 注入，无 localStorage）——
+const { WakeLockManager } = require(join(here, '../lib/types/web/wake-lock.js'))
 
 const makeManager = (overrides = {}) => {
   const requests = []
-  const releases = []
-  let visibilityListener = null
   const manager = new WakeLockManager({
-    storage: {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    },
     isSupported: () => true,
     request: async () => {
       const sentinel = {
-        release: async () => {
-          releases.push(1)
-        },
+        release: async () => {},
         addEventListener: () => {},
       }
       requests.push(sentinel)
       return sentinel
     },
-    subscribeVisibility: (listener) => {
-      visibilityListener = listener
-      return () => {
-        visibilityListener = null
-      }
-    },
+    subscribeVisibility: () => () => {},
     isVisible: () => true,
     ...overrides,
   })
-  return { manager, requests, releases, getVisibilityListener: () => visibilityListener }
+  return { manager, requests }
 }
 
 {
   const { manager, requests } = makeManager()
   check('初始状态 idle', manager.state === 'idle')
+  manager.setEnabled(true)
   manager.setTaskActive(true)
   await new Promise((r) => setTimeout(r, 10))
   check('任务开始后持有锁', manager.state === 'holding' && requests.length === 1)
@@ -116,28 +161,35 @@ const makeManager = (overrides = {}) => {
 
 {
   const { manager } = makeManager()
-  manager.setDefaultEnabled(false)
-  check('全局关闭时任务中也不申请', manager.state === 'disabled')
-  manager.setOverride(true)
+  manager.setEnabled(false)
   manager.setTaskActive(true)
   await new Promise((r) => setTimeout(r, 10))
-  check('本浏览器覆盖可重新打开', manager.state === 'holding')
-  manager.toggle()
-  check('toggle 关闭后 disabled', manager.state === 'disabled')
+  check('设置关闭时任务中也不申请', manager.state === 'disabled')
 }
 
 {
-  // visibilitychange：后台释放、回前台重取
-  const { manager, requests, getVisibilityListener } = makeManager()
+  // visibilitychange：后台释放、回前台自动重取
+  let visibilityListener = null
+  let visible = true
+  const { manager, requests } = makeManager({
+    subscribeVisibility: (listener) => {
+      visibilityListener = listener
+      return () => {
+        visibilityListener = null
+      }
+    },
+    isVisible: () => visible,
+  })
   manager.setTaskActive(true)
   await new Promise((r) => setTimeout(r, 10))
   check('前台任务持有锁', manager.state === 'holding')
-  // 模拟页面隐藏：浏览器自动释放（sentinel release 事件），状态 hidden
-  requests[0].release()
-  manager.setTaskActive(true) // 触发一次对账（release 事件回调置空 sentinel）
-  // 直接调用可见性监听（isVisible 注入恒为 true，这里先翻转）
-  const listener = getVisibilityListener()
-  check('已订阅 visibilitychange', typeof listener === 'function')
+  visible = false
+  visibilityListener?.()
+  check('页面后台时状态 hidden', manager.state === 'hidden')
+  visible = true
+  visibilityListener?.()
+  await new Promise((r) => setTimeout(r, 10))
+  check('回到前台自动重取', manager.state === 'holding' && requests.length === 2, `requests=${requests.length}`)
 }
 
 {

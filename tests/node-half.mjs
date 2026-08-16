@@ -29,7 +29,9 @@ const inhibitList = () => {
     return ''
   }
 }
-const hasAwake = (text) => text.includes('dsh-awake') || text.includes('dsh 任务执行中')
+// 用测试专属的 why 字符串自标识，避免与运行中 GUI 持有的 dsh-awake 记录混淆
+const TEST_WHY = 'dsh-awake-e2e'
+const hasAwake = (text) => text.includes(TEST_WHY)
 
 const ctx = new Context()
 const session = {} // 监听器不使用 session 内容
@@ -39,7 +41,7 @@ const config = {
   shellWakeLock: true,
   powerCfgWakeLock: false,
   webWakeLock: true,
-  why: 'dsh 任务执行中',
+  why: TEST_WHY,
 }
 
 const fiber = await ctx.plugin(plugin, config)
@@ -54,7 +56,7 @@ await sleep(1200)
 const during = inhibitList()
 check('任务期间 systemd-inhibit 出现 dsh-awake', hasAwake(during))
 console.log('  --- inhibit 输出片段 ---')
-console.log(during.split('\n').filter((l) => /dsh-awake|dsh 任务/.test(l)).join('\n') || during.slice(0, 400))
+console.log(during.split('\n').filter((l) => l.includes(TEST_WHY)).join('\n') || during.slice(0, 400))
 console.log('  -----------------------')
 
 // 子代理同时运行（嵌套计数不应提前放锁）
