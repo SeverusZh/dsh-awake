@@ -19,8 +19,12 @@ export type {
 /** 插件包名（= Cordis 条目名）。 */
 export const name = PLUGIN_ID
 
-/** 依赖的宿主服务：全部可选（settings/connection 缺席时降级，见 host/*.ts）。 */
-export const inject: string[] = []
+/**
+ * 依赖的宿主服务：connection / webServer 与 dsh-pocket 一致（RPC 通道的数据面）；
+ * settings 走 ctx.inject 回调（可选）。两个服务在 web base 中恒在；缺席时
+ * installAwakeRpc 内的 getOptionalService 兜底降级（服务端照常值守）。
+ */
+export const inject = ['connection', 'webServer']
 
 /** 装配入口：构造 AwakeService 即完成协调器 + settings + RPC 装配。 */
 export function apply(ctx: import('./host/context.js').HostContext, config: Record<string, unknown> = {}): void {

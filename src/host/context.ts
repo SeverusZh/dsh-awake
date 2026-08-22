@@ -73,3 +73,22 @@ export interface HostContext {
   /** Connection RPC（可选服务；缺席时设置页数据面停用）。 */
   readonly connection?: ConnectionService
 }
+
+/**
+ * 健壮地读取可选服务：先属性访问（需 inject 声明，跨 isolate 沿 fiber 链解析；
+ * 服务缺失时 cordis 抛错被捕获），再 ctx.get()（同 isolate 直读）。
+ * 与 dsh-pocket 在本环境验证过的模式一致（见 host/rpc.ts 的注释）。
+ */
+export function getOptionalService<T>(ctx: HostContext, name: string): T | undefined {
+  try {
+    const value = (ctx as unknown as Record<string, T | undefined>)[name]
+    if (value !== undefined) return value
+  } catch {
+    // 属性访问在服务缺失/未声明 inject 时抛错；忽略，继续尝试 ctx.get。
+  }
+  try {
+    return ctx.get<T>(name)
+  } catch {
+    return undefined
+  }
+}

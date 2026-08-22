@@ -10,7 +10,7 @@ import { PLUGIN_ID } from '../shared/constants.js'
 import type { AwakeStatus, ModeInfo } from '../types.js'
 import { detectPlatform, normalizeConfig, registryFor, type PlatformRegistry, type WakeMode } from '../modes/index.js'
 import { AwakeCoordinator } from './coordinator.js'
-import type { HostContext } from './context.js'
+import { getOptionalService, type HostContext } from './context.js'
 import { installAwakeRpc } from './rpc.js'
 import { restartHost } from './restart.js'
 import { AwakeSettings, buildBase, type ParsedAwakeSettings } from './settings.js'
@@ -35,7 +35,8 @@ export class AwakeService {
     this.registry = registryFor(platform)
     // 桌面端环境识别（官方兼容模式）：desktopProfiles / desktopPnpm 只在
     // DSH Desktop（Electron）里存在；更新/重启在此环境关闭。
-    this.desktop = ctx.get?.('desktopProfiles') !== undefined || ctx.get?.('desktopPnpm') !== undefined
+    this.desktop =
+      getOptionalService(ctx, 'desktopProfiles') !== undefined || getOptionalService(ctx, 'desktopPnpm') !== undefined
 
     let settingsRef!: AwakeSettings
     this.coordinator = new AwakeCoordinator({

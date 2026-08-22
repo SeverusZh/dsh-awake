@@ -35,14 +35,21 @@ const inhibitList = (): string => {
 }
 
 runOnUsable('host 半集成（真实 cordis Context + systemd-inhibit）', () => {
-  it('turn/start 拿锁 → turn/end 放锁；嵌套 turn 引用计数；卸载无条件放锁', async () => {
-    const ctx = new Context()
-    const fiber = await ctx.plugin(plugin, {
+  /** 插件声明 inject ['connection', 'webServer']（与真实 web base 一致），测试里提供 fake。 */
+  function boot(ctx: Context): Promise<unknown> {
+    ctx.provide('connection', { rpc: { handle: () => () => {} } })
+    ctx.provide('webServer', { register: () => () => {} })
+    return ctx.plugin(plugin, {
       version: 2,
       platform: 'linux',
       mode: 'systemd',
       config: { why: TEST_WHY },
     })
+  }
+
+  it('turn/start 拿锁 → turn/end 放锁；嵌套 turn 引用计数；卸载无条件放锁', async () => {
+    const ctx = new Context()
+    const fiber = await boot(ctx)
     const session = {}
 
     // —— turn/start 0→1 拿锁 ——
@@ -84,6 +91,8 @@ runOnUsable('host 半集成（真实 cordis Context + systemd-inhibit）', () =>
 
   it('配置 off → 不值守（无 systemd-inhibit 记录）', async () => {
     const ctx = new Context()
+    ctx.provide('connection', { rpc: { handle: () => () => {} } })
+    ctx.provide('webServer', { register: () => () => {} })
     const fiber = await ctx.plugin(plugin, {
       version: 2,
       platform: 'linux',

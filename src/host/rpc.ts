@@ -7,7 +7,7 @@
  */
 import { PLUGIN_ID, RPC_CHANNEL } from '../shared/constants.js'
 import type { AwakeStatus, RestartResult, RpcError, RpcResult, UpdateResult } from '../types.js'
-import type { ConnectionService, HostContext } from './context.js'
+import { getOptionalService, type ConnectionService, type HostContext } from './context.js'
 import { dshPortFromArgs, restartLaunch } from './restart.js'
 import type { UpdateHelper } from './update.js'
 import { versionInfo } from './version.js'
@@ -52,15 +52,16 @@ export interface RpcDeps {
 
 /** 注册 /dsh-awake 逻辑通道（仅本机 loopback 可调）。 */
 export function installAwakeRpc(ctx: HostContext, deps: RpcDeps): () => Promise<void> | void {
-  // 注意：connection 未在 inject 声明，必须用 ctx.get()（属性访问会抛
-  // "cannot get property without inject"）；缺失 = 设置页数据面停用。
-  const connection = ctx.get<ConnectionService>('connection')
+  // connection 通过 host inject 声明 + 属性访问解析（dsh-pocket 在本环境验证过的
+  // 模式；ctx.get 可能因 isolate/提供方状态拿不到）。缺失 = 设置页数据面停用。
+  const connection = getOptionalService<ConnectionService>(ctx, 'connection')
   if (connection?.rpc?.handle === undefined) {
     ctx.logger.warn(`[${PLUGIN_ID}] Connection RPC 不可用，设置页数据面停用（服务端照常值守）`)
     return () => {}
   }
   const { service, desktop, runUpdate, restart } = deps
 
+  ctx.logger.info(`[${PLUGIN_ID}] RPC 通道 ${RPC_CHANNEL} 已注册（设置页数据面就绪）`)
   return connection.rpc.handle(
     RPC_CHANNEL,
     async (endpoint, payload = {}, signal) => {
