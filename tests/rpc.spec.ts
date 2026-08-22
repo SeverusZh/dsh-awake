@@ -34,21 +34,21 @@ function makeStatus(overrides: Partial<AwakeStatus> = {}): AwakeStatus {
 
 function fakeCtx(): { ctx: HostContext; handlers: CapturedHandler[] } {
   const handlers: CapturedHandler[] = []
+  const connection = {
+    rpc: {
+      handle: (channel: string, handler: CapturedHandler['handler'], options: { authority: string }) => {
+        handlers.push({ channel, handler, options })
+        return () => {}
+      },
+    },
+  }
   const ctx: HostContext = {
     baseUrl: '/tmp/fake-profile',
     logger: silentLogger,
     effect: () => {},
     on: () => {},
-    get: () => undefined,
+    get: (service: string) => (service === 'connection' ? connection : undefined),
     inject: () => {},
-    connection: {
-      rpc: {
-        handle: (channel, handler, options) => {
-          handlers.push({ channel, handler, options })
-          return () => {}
-        },
-      },
-    },
   }
   return { ctx, handlers }
 }

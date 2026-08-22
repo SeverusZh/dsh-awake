@@ -1,0 +1,102 @@
+/**
+ * 界面文案（i18n 字典）。zh 为基准键集；en 与 zh 键一一对应，供
+ * dsh-client-locale 按用户语言切换（settings.awake 命名空间）。
+ */
+
+/** 简体中文（基准）。 */
+export const zh = {
+  sectionLabel: '防休眠',
+  loading: '读取状态…',
+  loadError: '读取失败：',
+  // —— 状态行（2.1）——
+  backendConnected: '后端已连接',
+  backendFailed: '后端连接失败',
+  watching: '值守中 · {mode}',
+  watchFailed: '未值守（获取失败）',
+  off: '未启用',
+  idle: '未值守（无任务运行）',
+  unsupported: '平台不受支持',
+  refresh: '刷新',
+  // —— 提示区（2.2）——
+  staleFromPlatform: '检测到配置来自 {from}，当前为 {to}，已使用默认方式 {mode}',
+  staleModeMissing: '配置的方式 {mode} 在当前平台不可用，已使用默认方式 {default}',
+  fallbackActive: '首选方式失败，当前生效 {mode}',
+  fallbackReason: '原因：{reason}',
+  allFailed: '防休眠未能生效',
+  // —— 更新卡片（2.2）——
+  updateAvailable: '新版本 v{latest}（当前 v{current}）',
+  updateNow: '一键更新',
+  updating: '更新中…',
+  updatedRestart: '已更新 v{current}，重启生效',
+  restartNow: '重启生效',
+  restarting: '重启中…',
+  updatedAutoRestart: '已更新 v{latest}，正在自动重启…',
+  updateFailed: '更新失败：{output}',
+  updateManualHint: '手动更新：dsh plugin --profile web update dsh-awake --latest -w',
+  updateDesc: '当前 v{current} → 最新 v{latest}',
+  elapsed: '已等待 {s} 秒',
+  // —— 浏览器开关（2.3）——
+  browserWakeLock: '为当前浏览器开启页面防休眠',
+  browserWakeHint: '不写入配置文件，仅本浏览器生效',
+  browserUnsupported: '当前浏览器不支持 Screen Wake Lock',
+  on: '开',
+  offShort: '关',
+  // —— 方式选择（2.4）——
+  modeLabel: '插件运行模式',
+  offOption: '关闭（off）',
+  descriptionLabel: '说明',
+  unavailable: '不可用：{reason}',
+  defaultBadge: '默认',
+  apply: '应用',
+  saving: '保存中…',
+  saved: '已保存',
+  saveFailed: '保存失败：{message}',
+} as const
+
+/** 键集（以 zh 为基准）。 */
+export type LocaleKey = keyof typeof zh
+
+/** English（与 zh 键一一对应）。 */
+export const en: Record<LocaleKey, string> = {
+  sectionLabel: 'Awake',
+  loading: 'Loading status…',
+  loadError: 'Failed to load: ',
+  backendConnected: 'Backend connected',
+  backendFailed: 'Backend unreachable',
+  watching: 'Watching · {mode}',
+  watchFailed: 'Not watching (failed)',
+  off: 'Disabled',
+  idle: 'Not watching (no tasks running)',
+  unsupported: 'Platform unsupported',
+  refresh: 'Refresh',
+  staleFromPlatform: 'Config came from {from}; running {to} — using default mode {mode}',
+  staleModeMissing: 'Configured mode {mode} is unavailable on this platform — using default mode {default}',
+  fallbackActive: 'Preferred mode failed; now using {mode}',
+  fallbackReason: 'Reason: {reason}',
+  allFailed: 'Anti-sleep could not be enabled',
+  updateAvailable: 'New version v{latest} (current v{current})',
+  updateNow: 'Update',
+  updating: 'Updating…',
+  updatedRestart: 'Updated to v{current} — restart to apply',
+  restartNow: 'Restart now',
+  restarting: 'Restarting…',
+  updatedAutoRestart: 'Updated to v{latest} — restarting automatically…',
+  updateFailed: 'Update failed: {output}',
+  updateManualHint: 'Manual update: dsh plugin --profile web update dsh-awake --latest -w',
+  updateDesc: 'current v{current} → latest v{latest}',
+  elapsed: '{s}s elapsed',
+  browserWakeLock: 'Keep this browser awake while tasks run',
+  browserWakeHint: 'Per-browser only — not written to the config file',
+  browserUnsupported: 'Screen Wake Lock is not supported by this browser',
+  on: 'On',
+  offShort: 'Off',
+  modeLabel: 'Server mode',
+  offOption: 'Off',
+  descriptionLabel: 'About',
+  unavailable: 'Unavailable: {reason}',
+  defaultBadge: 'default',
+  apply: 'Apply',
+  saving: 'Saving…',
+  saved: 'Saved',
+  saveFailed: 'Save failed: {message}',
+}
