@@ -60,15 +60,15 @@ describe('ConfigFieldForm（描述符 → 表单渲染）', () => {
   it('boolean 字段：开关按钮开/关 + 点击触发 onChange', () => {
     const onChange = vi.fn()
     render(<ConfigFieldForm fields={[fields[3]!]} value={{}} onChange={onChange} disabled={false} t={t} />)
-    const btn = screen.getByRole('button') as HTMLButtonElement
-    expect(btn.textContent).toBe('on') // 默认 true
-    fireEvent.click(btn)
+    const box = screen.getByRole('checkbox', { name: 'on' }) as HTMLInputElement // 默认 true
+    expect(box.checked).toBe(true)
+    fireEvent.click(box)
     expect(onChange).toHaveBeenCalledWith('fast', false)
   })
 
   it('boolean 字段：已有 false 显示关', () => {
     render(<ConfigFieldForm fields={[fields[3]!]} value={{ fast: false }} onChange={() => {}} disabled={false} t={t} />)
-    expect(screen.getByRole('button').textContent).toBe('offShort')
+    expect((screen.getByRole('checkbox', { name: 'offShort' }) as HTMLInputElement).checked).toBe(false)
   })
 
   it('select 字段：选项渲染 + 选择触发 onChange', () => {

@@ -19,12 +19,7 @@ export const powercfg: WakeMode = {
   name: 'powercfg',
   description: '临时修改电源方案 standby-timeout（从不睡眠），任务结束恢复原值；Windows 自带命令。',
   default: false,
-  fields: [
-    {
-      type: 'text',
-      content: '临时修改当前电源方案的睡眠超时为「从不睡眠」，任务结束恢复原值；Windows 自带命令。',
-    },
-  ],
+  fields: [],
   isAvailable() {
     if (!commandAvailable('powercfg', ['/?'])) {
       return { ok: false, reason: '未找到 powercfg' }

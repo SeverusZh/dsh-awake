@@ -17,12 +17,7 @@ export const gnomeGsettings: WakeMode = {
   name: 'GNOME gsettings',
   description: '临时修改 GNOME 电源设置（从不睡眠），任务结束恢复原值；仅 GNOME 桌面可用。',
   default: false,
-  fields: [
-    {
-      type: 'text',
-      content: '临时修改 GNOME 电源设置 sleep-inactive-ac-type 为「从不睡眠」，任务结束恢复原值；仅 GNOME 桌面（gsettings）可用。',
-    },
-  ],
+  fields: [],
   isAvailable() {
     if (!commandAvailable('gsettings', ['--version'])) {
       return { ok: false, reason: '未找到 gsettings（仅支持 GNOME 桌面）' }

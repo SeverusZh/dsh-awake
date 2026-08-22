@@ -20,10 +20,6 @@ export const systemd: WakeMode = {
   default: true,
   fields: [
     {
-      type: 'text',
-      content: '通过 systemd-inhibit 阻止系统休眠，需要 systemd 环境（无桌面亦可用）。任务结束自动终止。',
-    },
-    {
       type: 'input',
       key: 'why',
       title: '阻止原因',

@@ -81,6 +81,7 @@ export function buildBase(
 export class AwakeSettings {
   private parsed: ParsedAwakeSettings
   private updater: ((patch: Record<string, unknown>) => Promise<unknown>) | null = null
+  private replacerImpl: ((section: Record<string, unknown>) => Promise<unknown>) | null = null
 
   constructor(
     private readonly ctx: HostContext,
@@ -97,9 +98,18 @@ export class AwakeSettings {
     return this.parsed
   }
 
-  /** settings 写入钩子（服务缺席为 null = 只读）。 */
+  /** settings 写入钩子：update（深合并，用于局部补丁）。服务缺席为 null = 只读。 */
   get writer(): ((patch: Record<string, unknown>) => Promise<unknown>) | null {
     return this.updater
+  }
+
+  /**
+   * settings 写入钩子：replace（整段替换，config 换方式时清残留键的路径——
+   * update 是深合并，`config: {}` 合并不掉旧键，select 必须走 replace）。
+   * 服务缺席为 null = 只读。
+   */
+  get replacer(): ((section: Record<string, unknown>) => Promise<unknown>) | null {
+    return this.replacerImpl
   }
 
   /** 注册 settings 命名空间（可选服务；callback 在服务可用时执行）。 */
@@ -126,6 +136,7 @@ export class AwakeSettings {
       })
       sctx.settings.register(SETTINGS_NS, valueSchema, { base: this.base })
       this.updater = (patch) => sctx.settings.update(SETTINGS_NS, patch)
+      this.replacerImpl = (section) => sctx.settings.replace(SETTINGS_NS, section)
 
       const apply = async (): Promise<void> => {
         const platform = detectPlatform()

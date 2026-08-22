@@ -106,20 +106,23 @@ export class AwakeService {
     return this.status()
   }
 
-  /** 写配置：normalize → settings.update → 对账（settings/updated 事件触发，等链排空）+ 试运行。 */
+  /**
+   * 写配置：normalize → settings.replace（整段替换，避免深合并残留旧 config 键）→
+   * 对账（settings/updated 事件触发，等链排空）+ 试运行。
+   */
   async select(mode: string, config: Record<string, unknown>): Promise<SelectResponse> {
     const platform = detectPlatform()
     if (platform === 'unsupported') throw new Error('当前平台不受支持')
-    const updater = this.settings.writer
-    if (updater === null) throw new Error('settings 服务不可用（只读）')
+    const replacer = this.settings.replacer
+    if (replacer === null) throw new Error('settings 服务不可用（只读）')
     if (mode !== 'off') {
       const registry = registryFor(platform)
       const target = registry?.modes[mode]
       if (target === undefined) throw new Error(`方式 ${mode} 在当前平台不可用`)
       const normalized = normalizeConfig(target.fields, config)
-      await updater({ version: 2, platform, mode, config: normalized })
+      await replacer({ version: 2, platform, mode, config: normalized })
     } else {
-      await updater({ version: 2, platform, mode: 'off', config: {} })
+      await replacer({ version: 2, platform, mode: 'off', config: {} })
     }
     // settings/updated 事件已触发对账（openTurns > 0 时先放锁再按新配置拿锁）；
     // 等串行链排空，让响应反映最新生效状态。

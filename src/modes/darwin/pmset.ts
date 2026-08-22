@@ -16,12 +16,7 @@ export const pmset: WakeMode = {
   name: 'pmset',
   description: '临时修改系统电源设置（从不睡眠），任务结束恢复原值；macOS 自带命令。',
   default: false,
-  fields: [
-    {
-      type: 'text',
-      content: '临时修改系统电源设置 sleep 为 0（从不睡眠），任务结束按 AC / Battery / UPS 各来源恢复原值。',
-    },
-  ],
+  fields: [],
   isAvailable() {
     if (!commandAvailable('pmset', ['-g'])) {
       return { ok: false, reason: '未找到 pmset' }

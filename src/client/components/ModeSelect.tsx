@@ -10,6 +10,7 @@ import { useState } from 'react'
 import type { AwakeStatus, ConfigField } from '../../types.js'
 import type { AwakeApi } from '../api.js'
 import { styles } from './styles.js'
+import { ToggleSwitch } from './ToggleSwitch.js'
 
 export interface ModeSelectProps {
   readonly data: AwakeStatus
@@ -31,13 +32,17 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
   const [testResult, setTestResult] = useState<{ ok: boolean; reason?: string; description?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  /** 下拉当前值：draft > effective > 合法 selected > 平台默认 > off。 */
+  /**
+   * 下拉当前值 = 配置里选中的方式（draft > selected）；off → 'off'；
+   * stale（配置的方式不在当前平台注册表）→ 平台默认（应用时写回当前平台）。
+   * 注意：不用 effective——回退是运行时状态，状态行已展示「值守中 · XX」，
+   * 下拉必须反映配置本身，否则无法把失效配置改回去。
+   */
   const currentMode = ((): string => {
     if (draft !== null) return draft.mode
     const sel = data.selected
-    const inList = sel !== null && data.modes.some((m) => m.id === sel)
-    if (data.effective !== null) return data.effective
-    if (inList && sel !== null) return sel
+    if (sel !== null && data.modes.some((m) => m.id === sel)) return sel
+    if (sel === null) return 'off'
     return data.modes.find((m) => m.default)?.id ?? 'off'
   })()
 
@@ -212,26 +217,7 @@ export function ConfigFieldForm({ fields, value, onChange, disabled, t }: Config
           const v = value[field.key] === true || (value[field.key] === undefined && field.default === true)
           return (
             <FieldRow key={field.key} title={field.title} hint={field.hint} t={t}>
-              <button
-                type="button"
-                style={{
-                  minWidth: 52,
-                  borderRadius: 999,
-                  border: '1px solid rgba(148, 163, 184, 0.4)',
-                  padding: '4px 12px',
-                  fontSize: 12,
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  color: 'inherit',
-                  background: v ? 'rgba(34, 197, 94, 0.25)' : 'rgba(148, 163, 184, 0.12)',
-                  borderColor: v ? 'rgba(34, 197, 94, 0.6)' : 'rgba(148, 163, 184, 0.4)',
-                  ...(disabled ? styles.disabled : {}),
-                }}
-                aria-pressed={v}
-                disabled={disabled}
-                onClick={() => onChange(field.key, !v)}
-              >
-                {v ? t('on') : t('offShort')}
-              </button>
+              <ToggleSwitch checked={v} disabled={disabled} onChange={() => onChange(field.key, !v)} labelOn={t('on')} labelOff={t('offShort')} />
             </FieldRow>
           )
         }
