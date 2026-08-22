@@ -110,10 +110,10 @@ export type RpcResult<T> =
 /** awake.update 的结果（外层 RPC 信封 ok 为传输成功，这里的 ok 为更新本身）。 */
 export interface UpdateResult {
   readonly ok: boolean
-  readonly output?: string
-  readonly error?: string
+  output?: string
+  error?: string
   /** 更新成功后是否已自动拉起重启。 */
-  readonly autoRestart?: boolean
+  autoRestart?: boolean
 }
 
 /** awake.restart 的结果。 */

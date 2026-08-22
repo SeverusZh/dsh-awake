@@ -1,0 +1,154 @@
+/**
+ * AwakeService：host 半编排器（构造即装配，仿 WinMgrService）——
+ *   1. 探测平台 + 注册表；
+ *   2. AwakeCoordinator（引用计数 + 回退链）；
+ *   3. settings 命名空间（可选服务；缺席退回入口配置，只读）；
+ *   4. /dsh-awake RPC 通道（可选服务；缺席则设置页数据面停用）；
+ *   5. 会话生命周期事件 + 卸载放锁。
+ */
+import { PLUGIN_ID } from '../shared/constants.js'
+import type { AwakeStatus, ModeInfo } from '../types.js'
+import { detectPlatform, normalizeConfig, registryFor, type PlatformRegistry, type WakeMode } from '../modes/index.js'
+import { AwakeCoordinator } from './coordinator.js'
+import type { HostContext } from './context.js'
+import { installAwakeRpc } from './rpc.js'
+import { restartHost } from './restart.js'
+import { AwakeSettings, buildBase, type ParsedAwakeSettings } from './settings.js'
+import { createUpdateHelper } from './update.js'
+import { versionInfo } from './version.js'
+
+/** 探测缓存：方式 id → 结果（refresh 时失效）。 */
+interface ProbeCacheEntry {
+  readonly ok: boolean
+  readonly reason: string | null
+}
+
+export class AwakeService {
+  private readonly registry: PlatformRegistry | undefined
+  private readonly desktop: boolean
+  private readonly coordinator: AwakeCoordinator
+  private readonly settings: AwakeSettings
+  private readonly probeCache = new Map<string, ProbeCacheEntry>()
+
+  constructor(ctx: HostContext, config: Record<string, unknown> = {}) {
+    const platform = detectPlatform()
+    this.registry = registryFor(platform)
+    // 桌面端环境识别（官方兼容模式）：desktopProfiles / desktopPnpm 只在
+    // DSH Desktop（Electron）里存在；更新/重启在此环境关闭。
+    this.desktop = ctx.get?.('desktopProfiles') !== undefined || ctx.get?.('desktopPnpm') !== undefined
+
+    let settingsRef!: AwakeSettings
+    this.coordinator = new AwakeCoordinator({
+      registry: this.registry,
+      resolve: () => {
+        const parsed: ParsedAwakeSettings = settingsRef.snapshot
+        return { modeId: parsed.modeId, config: parsed.config }
+      },
+      logger: ctx.logger,
+    })
+    settingsRef = new AwakeSettings(ctx, buildBase(config, platform), () => this.coordinator.reconcile(), ctx.logger)
+    this.settings = settingsRef
+    settingsRef.attach()
+
+    // 会话生命周期：跨会话引用计数（turn/start 0→1 拿锁，turn/end 1→0 放锁）。
+    ctx.on('session/event', (_session: unknown, event: unknown) => {
+      const type = (event as { type?: unknown } | null)?.type
+      if (typeof type === 'string') this.coordinator.onSessionEvent({ type })
+    })
+
+    // 插件卸载（热重载 / 退出）时无条件放锁。
+    ctx.effect(
+      () => () => {
+        void this.coordinator.dispose()
+      },
+      `${PLUGIN_ID}: 卸载放锁`,
+    )
+
+    // RPC 数据面（可选服务；缺席时设置页停用，服务端照常值守）。
+    installAwakeRpc(ctx, {
+      service: this,
+      desktop: this.desktop,
+      runUpdate: createUpdateHelper(),
+      restart: () => restartHost(),
+    })
+
+    const status = this.status()
+    ctx.logger.info(
+      `[${PLUGIN_ID}] 已启动：platform=${status.platform} mode=${status.selected ?? 'off'}（默认 ${this.registry?.defaultMode ?? '—'}），` +
+        `stale=${status.stale}，desktop=${this.desktop}，版本 ${status.version.loaded}`,
+    )
+  }
+
+  /** 状态 + 方式列表 + 可用性 + 版本。 */
+  status(): AwakeStatus {
+    const parsed = this.settings.snapshot
+    return {
+      platform: detectPlatform(),
+      selected: parsed.modeId,
+      effective: this.coordinator.effectiveMode,
+      active: this.coordinator.isActive,
+      openTurns: this.coordinator.openTurnCount,
+      stale: parsed.stale,
+      configured: { platform: parsed.configuredPlatform, mode: parsed.configuredMode },
+      attempts: [...this.coordinator.attemptLog],
+      modes: this.modeInfos(),
+      config: parsed.config,
+      version: versionInfo(),
+      desktop: this.desktop,
+    }
+  }
+
+  /** 失效可用性缓存重新探测（刷新按钮）。 */
+  refresh(): AwakeStatus {
+    this.probeCache.clear()
+    return this.status()
+  }
+
+  /** 写配置：normalize → settings.update → 对账（settings/updated 事件触发，等链排空）。 */
+  async select(mode: string, config: Record<string, unknown>): Promise<AwakeStatus> {
+    const platform = detectPlatform()
+    if (platform === 'unsupported') throw new Error('当前平台不受支持')
+    const updater = this.settings.writer
+    if (updater === null) throw new Error('settings 服务不可用（只读）')
+    if (mode !== 'off') {
+      const registry = registryFor(platform)
+      const target = registry?.modes[mode]
+      if (target === undefined) throw new Error(`方式 ${mode} 在当前平台不可用`)
+      const normalized = normalizeConfig(target.fields, config)
+      await updater({ version: 2, platform, mode, config: normalized })
+    } else {
+      await updater({ version: 2, platform, mode: 'off', config: {} })
+    }
+    // settings/updated 事件已触发对账（openTurns > 0 时先放锁再按新配置拿锁）；
+    // 等串行链排空，让响应反映最新生效状态。
+    await this.coordinator.drain()
+    return this.status()
+  }
+
+  /** 当前平台全部方式的 ModeInfo（可用性走缓存）。 */
+  private modeInfos(): ModeInfo[] {
+    if (this.registry === undefined) return []
+    return this.registry.order.map((id) => {
+      const mode = this.registry!.modes[id]!
+      const probe = this.probe(id, mode)
+      return {
+        id,
+        name: mode.name,
+        description: mode.description,
+        default: mode.default,
+        available: probe.ok,
+        reason: probe.ok ? null : probe.reason,
+        fields: mode.fields,
+      }
+    })
+  }
+
+  private probe(id: string, mode: WakeMode): ProbeCacheEntry {
+    const cached = this.probeCache.get(id)
+    if (cached !== undefined) return cached
+    const result = mode.isAvailable()
+    const value: ProbeCacheEntry = result.ok ? { ok: true, reason: null } : { ok: false, reason: result.reason }
+    this.probeCache.set(id, value)
+    return value
+  }
+}

@@ -6,22 +6,23 @@
  * 任务结束后释放。方式子系统（src/modes）按平台聚合实现，拿锁时按
  * 配置 + 回退链逐个尝试（见 DESIGN.md 3.1）。
  *
- * 本文件为骨架占位：完整装配见 host/service.ts（Step 3 填充）。
+ * Cordis 插件契约：具名导出 { name, inject, apply }。
  */
+import { AwakeService } from './host/service.js'
 import { PLUGIN_ID } from './shared/constants.js'
 
 export type {
-  AwakeStatus, AwakeVersion, AttemptLog, ConfigField, ModeInfo,
-  RpcError, RpcResult, SelectRequest, UpdateResult,
+  AwakeSettingsShape, AwakeStatus, AwakeVersion, AttemptLog, ConfigField, ModeInfo,
+  RestartResult, RpcError, RpcResult, SelectRequest, UpdateResult,
 } from './types.js'
 
 /** 插件包名（= Cordis 条目名）。 */
 export const name = PLUGIN_ID
 
-/** 依赖的宿主服务（settings 为可选结构，见 host/settings.ts 的降级路径）。 */
+/** 依赖的宿主服务：全部可选（settings/connection 缺席时降级，见 host/*.ts）。 */
 export const inject: string[] = []
 
 /** 装配入口：构造 AwakeService 即完成协调器 + settings + RPC 装配。 */
-export function apply(): void {
-  // 骨架阶段：待 host/service.ts 装配。
+export function apply(ctx: import('./host/context.js').HostContext, config: Record<string, unknown> = {}): void {
+  void new AwakeService(ctx, config)
 }
