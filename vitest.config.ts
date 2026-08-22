@@ -7,5 +7,7 @@ export default defineConfig({
     // 避免 jsdom DOM 在用例之间累积。
     globals: true,
     include: ['tests/**/*.spec.ts', 'tests/**/*.spec.tsx'],
+    // 进程级测试（看门狗/集成）依赖 pgrep 计数，跨文件并行会互相干扰，串行执行。
+    fileParallelism: false,
   },
 })
