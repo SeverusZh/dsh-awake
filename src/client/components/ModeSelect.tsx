@@ -122,28 +122,31 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
           <ConfigFieldForm fields={fields} value={cfg} onChange={setField} disabled={saving} t={t} />
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            style={{ ...styles.primary, height: 30, padding: '0 14px', ...(draft === null || saving ? styles.disabled : {}) }}
-            disabled={draft === null || saving}
-            onClick={() => void apply()}
-          >
-            {saving ? t('saving') : t('apply')}
-          </button>
-          {saved && <span style={{ color: 'var(--dsw-alias-state-success-primary,#16a34a)', fontSize: 12 }}>✓ {t('saved')}</span>}
-          {testResult !== null &&
-            (testResult.ok ? (
-              <span style={{ color: 'var(--dsw-alias-state-success-primary,#16a34a)', fontSize: 12 }}>
-                ✓ {t('savedTestOk')}
-                {testResult.description !== undefined ? `（${testResult.description}）` : ''}
-              </span>
-            ) : (
-              <span style={{ color: 'var(--dsw-alias-state-warn-primary,#b45309)', fontSize: 12 }}>
-                ⚠ {t('savedTestFail').replace('{reason}', testResult.reason ?? '?')}
-              </span>
-            ))}
-          {error !== null && <span style={{ color: 'var(--dsw-alias-state-error-primary,#dc2626)', fontSize: 12 }}>❌ {t('saveFailed').replace('{message}', error)}</span>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* 按钮行：只放按钮，不被反馈文字挤压 */}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <button
+              type="button"
+              style={{ ...styles.primary, height: 30, padding: '0 14px', ...(draft === null || saving ? styles.disabled : {}) }}
+              disabled={draft === null || saving}
+              onClick={() => void apply()}
+            >
+              {saving ? t('saving') : t('apply')}
+            </button>
+          </div>
+          {/* 反馈行：独立一行，可自由换行，不挤压按钮 */}
+          {(saved || testResult !== null || error !== null) && (
+            <div style={{ fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word' }}>
+              {saved && testResult === null && <span style={{ color: 'var(--dsw-alias-state-success-primary,#16a34a)' }}>✓ {t('saved')}</span>}
+              {testResult !== null &&
+                (testResult.ok ? (
+                  <span style={{ color: 'var(--dsw-alias-state-success-primary,#16a34a)' }}>✓ {t('savedTestOk')}</span>
+                ) : (
+                  <span style={{ color: 'var(--dsw-alias-state-warn-primary,#b45309)' }}>⚠ {t('savedTestFail').replace('{reason}', testResult.reason ?? '?')}</span>
+                ))}
+              {error !== null && <span style={{ color: 'var(--dsw-alias-state-error-primary,#dc2626)' }}>❌ {t('saveFailed').replace('{message}', error)}</span>}
+            </div>
+          )}
         </div>
       </div>
     </div>
