@@ -1,10 +1,14 @@
-# dsh-awake · 守夜人（防休眠插件）
+# dsh-awake · 守夜人（防休眠插件）v0.2.0
 
 > DeepSeek Harness 插件：在 **agent 任务执行期间阻止操作系统休眠**，任务结束
 > （含出错、中断、取消）后恢复允许休眠。跨平台：**Windows / Linux / macOS**。
 
 电脑在 dsh 执行任务时自动休眠，会导致任务中断、重启后服务报错、会话数据损坏。
 `dsh-awake` 像守夜人一样盯住任务：任务开始 → 点亮「防休眠」，任务结束 → 熄灭。
+
+**v0.2.0 是破坏性重构**：方式子系统（平台优先、实现级粒度）、动态配置 schema、
+单通道 RPC 数据面（设置页不再碰官方 settings wire）、浏览器 Wake Lock 独立为
+每浏览器状态（localStorage）、一键更新/重启。0.1.x 旧配置在首次加载时自动迁移。
 
 ---
 
@@ -19,124 +23,110 @@ dsh plugin --profile web add dsh-awake
 ```
 
 > 运行中的 DSH 会**热监视** profile 的 `cordis.patch.yml`：追加配置后立即生效，
-> 无需重启。
+> 无需重启。本地开发可用 `pnpm add dsh-awake@link:...` 直接链接源码目录。
 
-也可以手动 `pnpm add dsh-awake` 并自行维护补丁条目：
+---
+
+## 配置格式（v0.2.0）
+
+配置在设置页「防休眠」里热改（`$DSH_HOME/settings.yaml` 持久化）。形状：
 
 ```yaml
-- insert:
-    - id: dsh-awake
-      name: 'dsh-awake'
-      config:
-        enabled: true
-        shellWakeLock: true
-        powerCfgWakeLock: false
-        webWakeLock: true
-        why: 'dsh 任务执行中'
+dsh-awake:
+  version: 2          # 配置文件版本：2；有老配置（0.1.x）自动转换
+  platform: linux     # 锚点：上次写入配置的平台（复制 .dsh 到其他系统时识别）
+  mode: systemd       # 当前平台选中的方式（= 实现文件名）；'off' = 关闭服务端
+  config:             # 该方式的配置；字段由方式自己声明（动态表单），多为空 {}
+    why: 'dsh 任务执行中'
 ```
 
-## 配置项
+- **宽松 schema**：`config` 是任意对象，键由方式声明、校验在 host 侧——加实现不动 schema。
+- **跨平台复制**：配置的 `platform` 与当前系统不一致时，运行时自动用当前平台默认
+  方式，设置页黄色提示「配置来自 Windows，当前为 Linux…」，**不覆盖文件**；
+  下次保存时 `platform` 更新为当前平台。
+- **`mode: 'off'`**：服务端不值守，状态行显示「未启用」，无红色提示（用户主动选择）。
+- 插件升级后配置的方式被删除 → 同样兜底到默认方式并提示。
 
-| 配置 | 默认 | 说明 |
-| --- | --- | --- |
-| `enabled` | `true` | 总开关；`false` 时全部方案不生效 |
-| `shellWakeLock` | `true` | 方案B：系统 shell 命令防休眠（推荐） |
-| `powerCfgWakeLock` | `false` | 方案C：电源设置兜底（默认关；结束时会恢复原值） |
-| `webWakeLock` | `true` | 方案A：浏览器 Wake Lock |
-| `why` | `'dsh 任务执行中'` | `systemd-inhibit` 的 `--why` 参数（Linux） |
+### 方式清单（platform → order → default）
 
-三个方案可自由组合，全部开启时按 **A+B+C** 同时生效，互不干扰。
+| 平台 | 方式（实现文件） | 默认 | 原理 |
+|---|---|---|---|
+| Linux | `systemd`（systemd-inhibit）、`gnome-gsettings` | `systemd` | 看门狗进程持锁 / 临时改 GNOME 电源设置 |
+| macOS | `caffeinate`、`pmset` | `caffeinate` | 看门狗进程持锁 / 临时改电源设置 |
+| Windows | `powershell`（SetThreadExecutionState）、`powercfg` | `powershell` | 看门狗进程持锁 / 临时改电源方案 |
 
-### 在哪里改配置：web 的「插件」设置页
+拿锁回退链：首选 = 配置的方式；失败则按平台 order 依次尝试；全部失败 →
+服务端未值守，设置页红色列出每个原因。
 
-插件注册了 `dsh-awake` 设置命名空间，web 端**「设置 → 插件 → 插件配置」**
-里会出现「守夜人（防休眠）」卡片，可随时开关：
+### 浏览器 Wake Lock（2.3）
 
-- **总开关**、**方案B · 系统命令**、**方案C · 电源设置**、**方案A · 浏览器
-  Wake Lock** 四个开关 + `--why` 参数；
-- 修改点「保存」即写入 `$DSH_HOME/settings.yaml` 并**热生效**（任务进行中
-  也会立即重新对账）；点「恢复默认」可撤销单字段覆盖；
-- 未在设置页修改过时，行为由 `cordis.patch.yml` 里的 `config` 决定
-  （设置页里字段不显示「已覆盖」徽标）。
-
-> 命令行方式等价：编辑 `$DSH_HOME/settings.yaml`，追加
-> `dsh-awake: { webWakeLock: false }` 之类的用户层覆盖即可，同样热生效。
+「为当前浏览器开启页面防休眠」是**每浏览器**状态，走
+`localStorage['dsh-awake.webWakeLock']`（默认开），**不进配置文件**；与服务端
+方式完全独立。有任务在运行且页面可见时持有 `navigator.wakeLock`，页面切后台
+自动重取。
 
 ---
 
-## 方案说明
+## 设置页
 
-### 方案A：浏览器 Wake Lock（仅 web 界面生效，无页面 UI）
+打开 dsh web → 设置 → **防休眠**：
 
-- 在支持 [Screen Wake Lock API](https://developer.mozilla.org/docs/Web/API/Screen_Wake_Lock_API)
-  的浏览器（Chromium 系、Edge 等）中，任务运行期间申请
-  `navigator.wakeLock.request('screen')`，任务结束释放。
-- 页面切到后台时**浏览器会自动释放锁**；插件监听 `visibilitychange`，
-  切回前台后若任务仍在运行则**自动重取**。
-- **插件不向页面注入任何可见元素**：方案A 在后台静默运行，开关统一走
-  web 的「插件」设置页（见下节）。
-- 注意：Wake Lock 要求**安全上下文**（https，或本机 `localhost` / `127.0.0.1`）。
-  本机 web GUI 满足条件。
+```
+[● 后端已连接] [● 值守中 · systemd]                 [🔄 刷新]
+⚠ 配置来自 Windows，当前为 Linux，已使用默认方式 systemd   ← stale（黄）
+❌ 防休眠未能生效：systemd-inhibit 未找到；…                ← 全失败（红）
+📦 新版本 v0.2.1（当前 v0.2.0）                  [一键更新]   ← 仅新版时渲染
+为当前浏览器开启页面防休眠                        [开/关]      ← localStorage
+插件运行模式
+[systemd-inhibit ▾]（不可用项 disabled + 原因）
+说明：通过 systemd-inhibit 阻止系统休眠，需要 systemd 环境…
+阻止原因 [dsh 任务执行中                ]                     ← 动态表单
+```
 
-### 方案B：系统 shell 命令（后台子进程，任务结束 kill 掉）
-
-| 平台 | 命令 | 说明 |
-| --- | --- | --- |
-| Linux | `systemd-inhibit --what=sleep:idle --who=dsh-awake --why="<why>" sleep infinity` | 需要 systemd；用 `systemd-inhibit --list` 可验证 |
-| macOS | `caffeinate -dimsu` | 系统自带 |
-| Windows | PowerShell 常驻进程循环调用 `kernel32.SetThreadExecutionState(ES_CONTINUOUS \| ES_SYSTEM_REQUIRED)` | 无需管理员权限；进程结束即恢复 |
-
-- 真实命令通过一个极小的**看门狗**中间进程运行：任务结束时 dsh 主动杀掉看门狗；
-  若 dsh 进程意外崩溃，管道断裂产生 EOF，看门狗会自动终止其子进程并退出——
-  **不会留下孤儿进程把系统永久锁在不休眠状态**。
-- 平台不支持（如非 systemd 的 Linux）时插件自动降级并打印日志，不影响其余方案。
-
-### 方案C：电源设置兜底（默认关闭）
-
-> 方案C 修改的是**系统级电源策略**，影响面更大，默认关闭；需要时自行开启。
-
-| 平台 | 修改 | 恢复 |
-| --- | --- | --- |
-| Windows | `powercfg /change standby-timeout-ac\|-dc 0` | 按读取到的原值（秒）恢复 |
-| Linux | `gsettings set … sleep-inactive-ac-type 'nothing'`（GNOME） | 恢复原字符串 |
-| macOS | `pmset -a sleep 0` | 恢复 AC / Battery / UPS 各来源原值 |
-
-- **先读取原值、再修改、结束时恢复**，全部 best-effort：命令缺失或失败只打日志，
-  绝不中断 agent 任务。
-- 部分修改需要管理员/root 权限（如 `powercfg /change`、部分 `pmset`），
-  失败时同样只降级提示。
+- 状态行每 5s 轮询；刷新按钮 = 重新探测方式可用性。
+- 更新卡片：npm registry 比对版本，一键更新（`dsh plugin update`）+ 自动重启生效；
+  DSH Desktop 环境不渲染（更新由桌面版管理）。
 
 ---
 
-## 生命周期绑定
-
-- 监听 `session/event` 的 `turn/start`（任务开始）与 `turn/end`（任务结束，
-  覆盖 `completed` / `error` / `max-tokens` / `aborted` / `interrupted` /
-  `blocked` 等全部结束原因），跨会话按「打开中的 turn 总数」引用计数，
-  0→1 拿锁、1→0 放锁——子代理（subagent）任务嵌套时不会提前放锁。
-- 插件卸载（热重载 / 退出）时无条件放锁。
-
-## 验证（Linux）
+## 开发
 
 ```sh
-# 任务执行期间：
-systemd-inhibit --list   # 应能看到 dsh-awake 的 inhibit 记录
-# 任务结束后：
-systemd-inhibit --list   # 记录消失；ps 中不再有 systemd-inhibit / sleep 子进程
+pnpm install
+pnpm typecheck   # tsc 双半
+pnpm test        # vitest（单测 + 看门狗进程测试 + systemd-inhibit 集成测试）
+pnpm build       # host → lib/index.js（ESM）；client → lib/client.js（ModuleLoader 壳）
 ```
 
-web 端：任务运行期间系统不会休眠；把页面切到后台再切回，Wake Lock 会自动重取
-（可在设置页关闭方案A 验证）。插件不注入任何页面 UI。
+工程化对齐 dsh-win-mgr：`tsconfig.{base,host,client}.json` + `tsdown.{host,client}.config.ts`
++ vitest；host 打 ESM 单文件，client 打 `window.__ModuleLoader__.load` CJS 工厂壳
+（react 系列走页面模块表 external）。
 
-## 常见问题
+### 加一个实现 / 平台
 
-- **`systemd-inhibit --list` 看不到记录？** 确认系统是 systemd、方案B 已开启、
-  且当前确实有任务在运行（`turn/start` 已触发）。
-- **方案A 不生效？** 浏览器不支持 Wake Lock（Firefox 桌面版等），或页面不是
-  https / localhost。改用方案B。
-- **方案C 打开后设置没变？** 检查当前桌面是否为 GNOME（Linux），
-  以及是否有管理员/root 权限（Windows / macOS）。
+- **加实现**：`src/modes/<platform>/<name>.ts` 导出 `WakeMode`（fields 声明动态
+  配置字段），在 `<platform>/index.ts` 的 `order`/`modes` 注册一行。
+- **加平台**：`src/modes/<platform>/` 目录 + `src/modes/index.ts` 静态 import 聚合。
 
-## 许可
+### 数据面
 
-MIT License
+所有设置页数据走 `ctx.connection.rpc` 通道 `/dsh-awake`（单通道，绕开官方
+settings wire 白名单），端点：`awake.status` / `awake.refresh` / `awake.select` /
+`awake.version` / `awake.update` / `awake.restart`；错误形状对齐
+`rpcErrorSchema`（`{ ok: false, error: { code, message, details } }`）。
+
+---
+
+## 迁移（0.1.x → 0.2.0）
+
+旧配置 `{ enabled, shellWakeLock, powerCfgWakeLock, webWakeLock, why }` 在 host
+首次加载时识别并自动转换（写回一次，不循环）：
+
+- `webWakeLock` → 浏览器 localStorage（默认开），settings 旧字段删除；
+- `shellWakeLock / powerCfgWakeLock` → `mode`：只开 powerCfg → 该平台电源类实现
+  （gnome-gsettings / pmset / powercfg），否则 → 平台默认实现；
+- `why` → `config.why`。
+
+## License
+
+MIT
