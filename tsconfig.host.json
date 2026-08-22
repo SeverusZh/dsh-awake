@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "src/index.ts",
+    "src/types.ts",
+    "src/shared/constants.ts",
+    "src/host/**/*.ts",
+    "src/modes/**/*.ts"
+  ]
+}
