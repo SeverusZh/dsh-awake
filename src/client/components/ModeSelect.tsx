@@ -28,6 +28,7 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
   const [draft, setDraft] = useState<Draft | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; reason?: string; description?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   /** 下拉当前值：draft > effective > 合法 selected > 平台默认 > off。 */
@@ -46,6 +47,7 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
 
   const changeMode = (mode: string): void => {
     setSaved(false)
+    setTestResult(null)
     setError(null)
     // 切回配置的方式 → 表单用已保存的配置；切到别的方式 → 空配置（字段回默认值）。
     const base = mode === data.selected ? data.config : {}
@@ -54,6 +56,7 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
 
   const setField = (key: string, value: unknown): void => {
     setSaved(false)
+    setTestResult(null)
     setError(null)
     setDraft((prev) => {
       const base = prev !== null ? prev.config : data.config
@@ -65,12 +68,18 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
     if (draft === null) return
     setSaving(true)
     setError(null)
+    setTestResult(null)
     try {
-      const next = await api.select({ mode: currentMode, config: currentMode === 'off' ? {} : cfg })
-      onStatus(next)
+      const res = await api.select({ mode: currentMode, config: currentMode === 'off' ? {} : cfg })
+      onStatus(res.status)
       setDraft(null)
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      setTestResult(res.test)
+      // 反馈持续展示：试运行结果停留更久，让用户看清。
+      setTimeout(() => {
+        setSaved(false)
+        setTestResult(null)
+      }, res.test === null ? 2000 : 6000)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -118,6 +127,17 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
             {saving ? t('saving') : t('apply')}
           </button>
           {saved && <span style={{ color: 'var(--dsw-alias-state-success-primary,#16a34a)', fontSize: 12 }}>✓ {t('saved')}</span>}
+          {testResult !== null &&
+            (testResult.ok ? (
+              <span style={{ color: 'var(--dsw-alias-state-success-primary,#16a34a)', fontSize: 12 }}>
+                ✓ {t('savedTestOk')}
+                {testResult.description !== undefined ? `（${testResult.description}）` : ''}
+              </span>
+            ) : (
+              <span style={{ color: 'var(--dsw-alias-state-warn-primary,#b45309)', fontSize: 12 }}>
+                ⚠ {t('savedTestFail').replace('{reason}', testResult.reason ?? '?')}
+              </span>
+            ))}
           {error !== null && <span style={{ color: 'var(--dsw-alias-state-error-primary,#dc2626)', fontSize: 12 }}>❌ {t('saveFailed').replace('{message}', error)}</span>}
         </div>
       </div>

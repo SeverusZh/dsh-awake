@@ -27,7 +27,14 @@ export const gnomeGsettings: WakeMode = {
     if (!commandAvailable('gsettings', ['--version'])) {
       return { ok: false, reason: '未找到 gsettings（仅支持 GNOME 桌面）' }
     }
-    return { ok: true }
+    // 二进制存在不代表可用：非 GNOME 桌面（如 KDE）可能没有该 schema。
+    // 真实读一次 key（快，~10ms），失败即判定不可用。
+    try {
+      runCommand('gsettings', ['get', GNOME_SCHEMA, GNOME_KEY])
+      return { ok: true }
+    } catch {
+      return { ok: false, reason: 'GNOME 电源 schema 不可用（当前桌面可能非 GNOME）' }
+    }
   },
   async start() {
     // gsettings get 输出自带单引号（GVariant 文本），原样保存并在恢复时原样回写。

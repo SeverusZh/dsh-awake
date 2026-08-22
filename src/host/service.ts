@@ -7,8 +7,9 @@
  *   5. 会话生命周期事件 + 卸载放锁。
  */
 import { PLUGIN_ID } from '../shared/constants.js'
-import type { AwakeStatus, ModeInfo } from '../types.js'
-import { detectPlatform, normalizeConfig, registryFor, type PlatformRegistry, type WakeMode } from '../modes/index.js'
+import type { AwakeStatus, ModeInfo, ModeTestResult, SelectResponse } from '../types.js'
+import { detectPlatform, normalizeConfig, registryFor, type ModeSession, type PlatformRegistry, type WakeMode } from '../modes/index.js'
+import { errorMessage } from '../modes/shared/tools.js'
 import { AwakeCoordinator } from './coordinator.js'
 import { getOptionalService, type HostContext } from './context.js'
 import { installAwakeRpc } from './rpc.js'
@@ -105,8 +106,8 @@ export class AwakeService {
     return this.status()
   }
 
-  /** 写配置：normalize → settings.update → 对账（settings/updated 事件触发，等链排空）。 */
-  async select(mode: string, config: Record<string, unknown>): Promise<AwakeStatus> {
+  /** 写配置：normalize → settings.update → 对账（settings/updated 事件触发，等链排空）+ 试运行。 */
+  async select(mode: string, config: Record<string, unknown>): Promise<SelectResponse> {
     const platform = detectPlatform()
     if (platform === 'unsupported') throw new Error('当前平台不受支持')
     const updater = this.settings.writer
@@ -123,7 +124,42 @@ export class AwakeService {
     // settings/updated 事件已触发对账（openTurns > 0 时先放锁再按新配置拿锁）；
     // 等串行链排空，让响应反映最新生效状态。
     await this.coordinator.drain()
-    return this.status()
+    const status = this.status()
+    // 应用后测试方案是否可用（start→stop 冒烟；off / 有任务运行 / 平台不支持时跳过）。
+    const test = await this.smokeTest(mode, config)
+    return { status, test }
+  }
+
+  /** 试运行：start → isActive 确认 → stop（幂等清理）。失败返回原因，不抛出。 */
+  private async smokeTest(mode: string, rawConfig: Record<string, unknown>): Promise<ModeTestResult | null> {
+    const platform = detectPlatform()
+    if (platform === 'unsupported' || mode === 'off') return null
+    // 有任务运行：对账已真实拿锁，无需（也不应）再试运行。
+    if (this.coordinator.openTurnCount > 0) return null
+    const target = registryFor(platform)?.modes[mode]
+    if (target === undefined) return null
+
+    const probe = target.isAvailable()
+    if (!probe.ok) return { ok: false, reason: probe.reason }
+    const config = normalizeConfig(target.fields, rawConfig)
+    let session: ModeSession | null = null
+    try {
+      session = await target.start(config)
+      if (!session.isActive()) {
+        return { ok: false, reason: '方式启动后未保持运行' }
+      }
+      return { ok: true, description: session.description }
+    } catch (error) {
+      return { ok: false, reason: errorMessage(error) }
+    } finally {
+      if (session !== null) {
+        try {
+          await session.stop()
+        } catch {
+          // 清理失败不掩盖试运行结果
+        }
+      }
+    }
   }
 
   /** 当前平台全部方式的 ModeInfo（可用性走缓存）。 */

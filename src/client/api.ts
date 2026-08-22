@@ -3,7 +3,7 @@
  * 端点契约见 src/types.ts 与 DESIGN.md 3.3。
  */
 import { RPC_CHANNEL } from '../shared/constants.js'
-import type { AwakeStatus, RpcResult, SelectRequest, UpdateResult } from '../types.js'
+import type { AwakeStatus, RpcResult, SelectRequest, SelectResponse, UpdateResult } from '../types.js'
 import type { ConnectionService } from './types.js'
 
 /**
@@ -53,7 +53,7 @@ export function makeRpc(connection: ConnectionService) {
   return {
     status: () => call<AwakeStatus>('awake.status', {}),
     refresh: () => call<AwakeStatus>('awake.refresh', {}),
-    select: (req: SelectRequest) => call<AwakeStatus>('awake.select', req),
+    select: (req: SelectRequest) => call<SelectResponse>('awake.select', req),
     version: () => call<{ current: string; loaded: string }>('awake.version', {}),
     update: () => call<UpdateResult>('awake.update', {}),
     restart: () => call<{ ok: boolean; hint?: string }>('awake.restart', {}),

@@ -6,7 +6,7 @@
  * `{ ok: false, error: { code, message, details } }`；signal.aborted → cancelled。
  */
 import { PLUGIN_ID, RPC_CHANNEL } from '../shared/constants.js'
-import type { AwakeStatus, RestartResult, RpcError, RpcResult, UpdateResult } from '../types.js'
+import type { AwakeStatus, RestartResult, RpcError, RpcResult, SelectResponse, UpdateResult } from '../types.js'
 import { getOptionalService, type ConnectionService, type HostContext } from './context.js'
 import { dshPortFromArgs, restartLaunch } from './restart.js'
 import type { UpdateHelper } from './update.js'
@@ -37,7 +37,7 @@ function killHint(port: number): string {
 export interface RpcService {
   status(): AwakeStatus
   refresh(): AwakeStatus
-  select(mode: string, config: Record<string, unknown>): Promise<AwakeStatus>
+  select(mode: string, config: Record<string, unknown>): Promise<SelectResponse>
 }
 
 export interface RpcDeps {

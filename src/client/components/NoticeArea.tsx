@@ -80,6 +80,7 @@ export function NoticeArea({ data, t }: NoticeAreaProps): React.ReactElement | n
 const noticeBox: React.CSSProperties = {
   borderLeft: '4px solid',
   borderRadius: 8,
+  marginTop: 12,
   padding: '10px 12px',
   fontSize: 12,
   lineHeight: 1.6,

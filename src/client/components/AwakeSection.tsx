@@ -70,19 +70,13 @@ export function AwakeSection({ api, manager, t }: AwakeSectionProps): React.Reac
     <div style={styles.card}>
       <StatusRow data={data} loadError={loadError} refreshing={refreshing} onRefresh={onRefresh} t={t} />
 
-      {load.status === 'loading' && <div style={{ ...styles.block, ...styles.muted }}>{t('loading')}</div>}
-      {load.status === 'error' && (
-        <div style={{ ...styles.block, ...styles.error }}>
-          {t('loadError')}
-          {loadError}
-        </div>
-      )}
+      {load.status === 'loading' && <div style={{ ...styles.muted, marginTop: 12 }}>{t('loading')}</div>}
+      {load.status === 'error' && <div style={{ ...styles.error, marginTop: 12 }}>{t('loadError')}{loadError}</div>}
 
       {data !== null && (
         <>
-          <div style={styles.block}>
-            <NoticeArea data={data} t={t} />
-          </div>
+          {/* 提示区 / 更新卡片自带色块边框，不重复画分割线；仅在出现时渲染 */}
+          <NoticeArea data={data} t={t} />
           <UpdateCard data={data} api={api} t={t} />
           <div style={styles.block}>
             <BrowserWakeToggle manager={manager} t={t} />

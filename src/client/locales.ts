@@ -50,6 +50,8 @@ export const zh = {
   apply: '应用',
   saving: '保存中…',
   saved: '已保存',
+  savedTestOk: '已保存，试运行通过',
+  savedTestFail: '已保存，但方式不可用：{reason}',
   saveFailed: '保存失败：{message}',
 } as const
 
@@ -98,5 +100,7 @@ export const en: Record<LocaleKey, string> = {
   apply: 'Apply',
   saving: 'Saving…',
   saved: 'Saved',
+  savedTestOk: 'Saved — smoke test passed',
+  savedTestFail: 'Saved, but mode unavailable: {reason}',
   saveFailed: 'Save failed: {message}',
 }

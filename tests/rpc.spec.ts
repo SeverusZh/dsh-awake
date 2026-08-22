@@ -57,7 +57,7 @@ function fakeService(overrides: Partial<RpcService> = {}): RpcService {
   return {
     status: () => makeStatus(),
     refresh: () => makeStatus({ attempts: [{ id: 'systemd', ok: true }] }),
-    select: async (mode, config) => makeStatus({ selected: mode, config }),
+    select: async (mode, config) => ({ status: makeStatus({ selected: mode, config }), test: null }),
     ...overrides,
   }
 }
@@ -96,16 +96,17 @@ describe('installAwakeRpc', () => {
     expect(res.error.code).toBe('bad-request')
   })
 
-  it('awake.select 转发 mode+config，返回最新状态', async () => {
+  it('awake.select 转发 mode+config，返回 { status, test }', async () => {
     const { ctx, handlers } = fakeCtx()
     installAwakeRpc(ctx, { service: fakeService(), desktop: false, runUpdate: null, restart: null })
     const res = (await handlers[0]!.handler('awake.select', { mode: 'gnome-gsettings', config: { why: 'x' } }, undefined)) as {
       ok: true
-      value: AwakeStatus
+      value: { status: AwakeStatus; test: null }
     }
     expect(res.ok).toBe(true)
-    expect(res.value.selected).toBe('gnome-gsettings')
-    expect(res.value.config).toEqual({ why: 'x' })
+    expect(res.value.status.selected).toBe('gnome-gsettings')
+    expect(res.value.status.config).toEqual({ why: 'x' })
+    expect(res.value.test).toBeNull()
   })
 
   it('service 抛错 → bad-request + 错误消息', async () => {

@@ -131,3 +131,18 @@ export interface SelectRequest {
   /** 该方式的配置（宽松对象，host 按字段描述符 normalize）。 */
   readonly config?: Record<string, unknown>
 }
+
+/** 应用设置后的试运行（start→stop 冒烟测试）结果。 */
+export interface ModeTestResult {
+  readonly ok: boolean
+  /** 失败/不可用原因（ok 为 false 时给出）。 */
+  readonly reason?: string
+  /** 成功时的会话说明（如 'linux · systemd-inhibit sleep infinity'）。 */
+  readonly description?: string
+}
+
+/** awake.select 的响应：状态 + 试运行结果（off / 有任务运行 / 平台不支持时为 null）。 */
+export interface SelectResponse {
+  readonly status: AwakeStatus
+  readonly test: ModeTestResult | null
+}
