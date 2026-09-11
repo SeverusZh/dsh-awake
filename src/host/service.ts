@@ -3,7 +3,7 @@
  *   1. 探测平台 + 注册表；
  *   2. AwakeCoordinator（引用计数 + 回退链）；
  *   3. settings 命名空间（可选服务；缺席退回入口配置，只读）；
- *   4. /dsh-awake RPC 通道（可选服务；缺席则设置页数据面停用）；
+ *   4. 设置页数据面 POST /api/dsh-awake（可选服务；缺席则设置页数据面停用）；
  *   5. 会话生命周期事件 + 卸载放锁。
  */
 import { PLUGIN_ID } from '../shared/constants.js'
@@ -68,12 +68,23 @@ export class AwakeService {
       `${PLUGIN_ID}: 卸载放锁`,
     )
 
-    // RPC 数据面（可选服务；缺席时设置页停用，服务端照常值守）。
-    installAwakeRpc(ctx, {
-      service: this,
-      desktop: this.desktop,
-      runUpdate: createUpdateHelper(),
-      restart: () => restartHost(),
+    // RPC 数据面（可选服务；connection 缺席时设置页停用，服务端照常值守）。
+    // 用 ctx.inject 等 connection 出现再注册：它是 web 专属服务，headless / tui
+    // 档位没有，所以不能写进插件 export inject（那样条目会一直 pending，
+    // 整棵加载树在 assertEntriesActivated 里报 "did not activate"）。
+    ctx.inject(['connection'], (rpcCtx) => {
+      const connection = rpcCtx.connection
+      if (connection?.fetch?.register === undefined) {
+        ctx.logger.warn(`[${PLUGIN_ID}] Connection 服务不可用，设置页数据面停用（服务端照常值守）`)
+        return
+      }
+      installAwakeRpc(connection, {
+        service: this,
+        desktop: this.desktop,
+        runUpdate: createUpdateHelper(),
+        restart: () => restartHost(),
+        logger: ctx.logger,
+      })
     })
 
     const status = this.status()

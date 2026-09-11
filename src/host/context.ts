@@ -5,7 +5,6 @@
  * 这里只声明本插件用到的面（on / effect / inject / get / connection / logger），
  * 避免为本包引入 peer 依赖链。
  */
-import type { RpcResult } from '../types.js'
 
 /** logger 服务的结构子集（cordis LoggerService：可调用 + 直接方法）。 */
 export interface LoggerLike {
@@ -25,6 +24,7 @@ export interface SchemasteryNamespace {
   object(fields: Record<string, SchemasteryNode>): SchemasteryNode
   string(): SchemasteryNode
   number(): SchemasteryNode
+  boolean(): SchemasteryNode
   any<T = unknown>(): SchemasteryNode
 }
 
@@ -38,23 +38,38 @@ export interface SettingsService {
   describe(): Array<{ ns: string; user?: unknown }>
 }
 
+/** 一条精确 Fetch 路由（dsh-client-connection 的 ConnectionFetchRoute 结构子集）。 */
+export interface ConnectionFetchRoute {
+  /** 必须是 /api 之下的绝对路径（如 /api/dsh-awake）。 */
+  readonly path: string
+  readonly methods: readonly ('GET' | 'HEAD' | 'POST')[]
+  /** buffered = 桥接层先按 JSON 体积上限聚合请求体。 */
+  readonly requestBody: 'buffered' | 'streaming'
+  /** 物理载体（webserver 的 /api 前缀路由）已应用信任 + 登录栅栏后再调用。 */
+  readonly fetch: (request: Request) => Promise<Response>
+}
+
+/**
+ * connection 服务的结构子集（dsh-client-connection host 半）。
+ *
+ * 只用共享 /api 通道的精确路由注册表：官方 file-upload / deliverables /
+ * session-log-export 等都用它。**刻意不用 rpc.handle**——它在注册时要读
+ * 提供方 fiber 祖先链上的 webServer，第三方插件拿不到（见 shared/constants.ts）。
+ */
+export interface ConnectionService {
+  readonly fetch: { register(route: ConnectionFetchRoute): () => Promise<void> | void }
+}
+
 /** ctx.inject(['settings'], ...) 回调里的子上下文。 */
 export interface SettingsContext {
   readonly settings: SettingsService
   readonly on: HostContext['on']
 }
 
-/** connection.rpc 的结构子集（dsh-client-connection host 半）。 */
-export interface ConnectionRpc {
-  handle(
-    channel: string,
-    handler: (endpoint: string, payload: unknown, signal?: AbortSignal) => Promise<RpcResult<unknown>> | RpcResult<unknown>,
-    options: { authority: 'loopback' | 'trusted-host' },
-  ): () => Promise<void> | void
-}
-
-export interface ConnectionService {
-  readonly rpc: ConnectionRpc
+/** ctx.inject([...], ...) 回调里的子上下文：请求的服务以可选属性出现。 */
+export interface InjectedContext extends SettingsContext {
+  /** 仅当 inject 列表包含 connection 时存在。 */
+  readonly connection?: ConnectionService
 }
 
 /** Host 侧 cordis 上下文。 */
@@ -68,16 +83,16 @@ export interface HostContext {
   on(event: string, listener: (...args: unknown[]) => void): unknown
   /** 读取可选服务（如 connection）；不存在返回 undefined。 */
   get<T = unknown>(service: string): T | undefined
-  /** 注入可选服务（如 settings），回调收到带该服务的子上下文。 */
-  inject(services: readonly string[], callback: (sctx: SettingsContext) => void): unknown
-  /** Connection RPC（可选服务；缺席时设置页数据面停用）。 */
+  /** 注入可选服务（如 settings / connection），回调收到带该服务的子上下文。 */
+  inject(services: readonly string[], callback: (sctx: InjectedContext) => void): unknown
+  /** 读取 connection 服务（可选；缺席时设置页数据面停用，服务端照常值守）。 */
   readonly connection?: ConnectionService
 }
 
 /**
- * 健壮地读取可选服务：先属性访问（需 inject 声明，跨 isolate 沿 fiber 链解析；
- * 服务缺失时 cordis 抛错被捕获），再 ctx.get()（同 isolate 直读）。
- * 与 dsh-pocket 在本环境验证过的模式一致（见 host/rpc.ts 的注释）。
+ * 健壮地读取可选服务：先属性访问（需 inject 声明，沿 fiber 链解析；服务缺失或
+ * 未声明 inject 时 cordis 抛错被捕获），再 ctx.get()（按 isolate 直读全局表）。
+ * 用于 desktopProfiles / desktopPnpm 这类「有就读、没有就算」的探测。
  */
 export function getOptionalService<T>(ctx: HostContext, name: string): T | undefined {
   try {

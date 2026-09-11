@@ -1,10 +1,9 @@
 /**
- * 设置页数据面（client 半 → host 半的 Connection RPC）。
+ * 设置页数据面（client 半 → host 半的 POST /api/dsh-awake）。
  * 端点契约见 src/types.ts 与 DESIGN.md 3.3。
  */
-import { RPC_CHANNEL } from '../shared/constants.js'
-import type { AwakeStatus, RpcResult, SelectRequest, SelectResponse, UpdateResult } from '../types.js'
-import type { ConnectionService } from './types.js'
+import { RPC_ROUTE_PATH } from '../shared/constants.js'
+import type { AwakeStatus, RpcRequest, RpcResult, SelectRequest, SelectResponse, UpdateResult } from '../types.js'
 
 /**
  * 语义化版本比较：a > b 返回正数，相等 0，a < b 负数（数字段 + 预发布后缀）。
@@ -43,11 +42,34 @@ export function compareVersions(a: string | number, b: string | number): number 
   return 0
 }
 
-/** RPC 封装：统一解信封（!ok → throw）。 */
-export function makeRpc(connection: ConnectionService) {
+/** 数据面 fetch（测试可注入；默认全局 fetch）。 */
+export type FetchLike = (input: string, init: RequestInit) => Promise<Response>
+
+/**
+ * 解析数据面 URL：与 dsh-client-connection 客户端同款——用 location.origin 拼
+ * 绝对地址（无 location 的环境如单测/worker 直接用路径，交给 fetch 解析）。
+ */
+function routeUrl(path: string): string {
+  const origin = globalThis.location?.origin
+  return origin !== undefined && origin !== '' && origin !== 'null' ? new URL(path, origin).href : path
+}
+
+/**
+ * 数据面封装：POST RPC_ROUTE_PATH `{ method, payload }` → 解 RpcResult 信封
+ * （!ok → throw；传输层 !response.ok 也 throw）。
+ */
+export function makeRpc(fetchImpl: FetchLike = (input, init) => globalThis.fetch(input, init)) {
   const call = async <T>(endpoint: string, payload: unknown = {}, signal?: AbortSignal): Promise<T> => {
-    const res: RpcResult<unknown> = await connection.rpc.call(RPC_CHANNEL, endpoint, payload, signal)
-    if (!res.ok) throw new Error(res.error.message ?? 'RPC failed')
+    const response = await fetchImpl(routeUrl(RPC_ROUTE_PATH), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ method: endpoint, payload } satisfies RpcRequest),
+      credentials: 'same-origin',
+      ...(signal === undefined ? {} : { signal }),
+    })
+    if (!response.ok) throw new Error(`transport failure for ${endpoint}: HTTP ${response.status}`)
+    const res = (await response.json()) as RpcResult<unknown>
+    if (res?.ok !== true) throw new Error(res?.error?.message ?? 'RPC failed')
     return res.value as T
   }
   return {

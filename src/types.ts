@@ -109,6 +109,14 @@ export type RpcResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: RpcError }
 
+/** 数据面请求体：POST 到 RPC_ROUTE_PATH（client 半发什么，host 半就解什么）。 */
+export interface RpcRequest {
+  /** 端点名（如 'awake.status'）。 */
+  readonly method: string
+  /** 端点入参（宽松对象；缺省 = {}）。 */
+  readonly payload?: unknown
+}
+
 /** awake.update 的结果（外层 RPC 信封 ok 为传输成功，这里的 ok 为更新本身）。 */
 export interface UpdateResult {
   readonly ok: boolean

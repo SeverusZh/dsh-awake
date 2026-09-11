@@ -8,6 +8,8 @@ import { execSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import * as plugin from '../src/index.js'
+import { RPC_ROUTE_PATH } from '../src/shared/constants.js'
+import type { ConnectionFetchRoute } from '../src/host/context.js'
 
 const TEST_WHY = 'dsh-awake-vitest-e2e'
 
@@ -35,16 +37,47 @@ const inhibitList = (): string => {
 }
 
 runOnUsable('host 半集成（真实 cordis Context + systemd-inhibit）', () => {
-  /** 插件声明 inject ['connection', 'webServer']（与真实 web base 一致），测试里提供 fake。 */
-  function boot(ctx: Context): Promise<unknown> {
-    ctx.provide('connection', { rpc: { handle: () => () => {} } })
-    ctx.provide('webServer', { register: () => () => {} })
+  /**
+   * 插件不再声明必需服务（web 专属的 connection 走 ctx.inject 可选等待），
+   * 测试里提供 fake connection.fetch 捕获精确路由，模拟真实浏览器数据面调用。
+   */
+  function boot(
+    ctx: Context,
+    onRoute?: (route: ConnectionFetchRoute) => void,
+    config: Record<string, unknown> = {},
+  ): Promise<unknown> {
+    ctx.provide('connection', {
+      fetch: {
+        register: (route: ConnectionFetchRoute) => {
+          onRoute?.(route)
+          return () => {}
+        },
+      },
+    })
     return ctx.plugin(plugin, {
       version: 2,
       platform: 'linux',
       mode: 'systemd',
       config: { why: TEST_WHY },
+      ...config,
     })
+  }
+
+  /** 走真实线格式调一个端点：POST { method, payload } → RpcResult。 */
+  async function callRpc(
+    route: ConnectionFetchRoute,
+    method: string,
+    payload: unknown,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    const request = new Request(`http://127.0.0.1:3080${RPC_ROUTE_PATH}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ method, payload }),
+      ...(signal === undefined ? {} : { signal }),
+    })
+    const response = await route.fetch(request)
+    return response.json()
   }
 
   it('turn/start 拿锁 → turn/end 放锁；嵌套 turn 引用计数；卸载无条件放锁', async () => {
@@ -91,18 +124,53 @@ runOnUsable('host 半集成（真实 cordis Context + systemd-inhibit）', () =>
 
   it('配置 off → 不值守（无 systemd-inhibit 记录）', async () => {
     const ctx = new Context()
-    ctx.provide('connection', { rpc: { handle: () => () => {} } })
-    ctx.provide('webServer', { register: () => () => {} })
-    const fiber = await ctx.plugin(plugin, {
-      version: 2,
-      platform: 'linux',
-      mode: 'off',
-      config: {},
-    })
+    const fiber = await boot(ctx, undefined, { mode: 'off', config: {} })
     const session = {}
     ctx.emit('session/event', session, { type: 'turn/start', turn: 1 })
     await sleep(800)
     expect(inhibitList()).not.toContain(TEST_WHY)
     await fiber.dispose()
   }, 15000)
+
+  it('常开防休眠（awake.alwaysOn）→ 无任何任务也拿锁；任务结束仍保持；关闭后放锁', async () => {
+    const ctx = new Context()
+    let route: ConnectionFetchRoute | null = null
+    const fiber = await boot(ctx, (r) => {
+      route = r
+    })
+    const session = {}
+
+    // 初始：未开启常开 → 无 inhibit 记录。
+    await sleep(800)
+    expect(inhibitList()).not.toContain(TEST_WHY)
+
+    // 开启常开（走真实数据面路由）→ 未派发任何 turn/start 也应出现记录。
+    const on = (await callRpc(route!, 'awake.alwaysOn', { enabled: true })) as {
+      ok: true
+      value: { alwaysOn: boolean; active: boolean; openTurns: number }
+    }
+    expect(on.ok).toBe(true)
+    expect(on.value.alwaysOn).toBe(true)
+    expect(on.value.active).toBe(true)
+    expect(on.value.openTurns).toBe(0)
+    await sleep(1200)
+    expect(inhibitList()).toContain(TEST_WHY)
+
+    // 任务结束后常开仍保持：turn/start → turn/end 全程记录在列。
+    ctx.emit('session/event', session, { type: 'turn/start', turn: 1 })
+    await sleep(800)
+    ctx.emit('session/event', session, { type: 'turn/end', turn: 1, reason: 'completed' })
+    await sleep(800)
+    expect(inhibitList()).toContain(TEST_WHY)
+
+    // 关闭常开 → 无任务时放锁。
+    await callRpc(route!, 'awake.alwaysOn', { enabled: false })
+    await sleep(1200)
+    expect(inhibitList()).not.toContain(TEST_WHY)
+
+    // 卸载 → 无条件放锁（幂等）。
+    await fiber.dispose()
+    await sleep(1000)
+    expect(inhibitList()).not.toContain(TEST_WHY)
+  }, 30000)
 })

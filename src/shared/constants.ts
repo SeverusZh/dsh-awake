@@ -15,8 +15,17 @@ export const SETTINGS_SLOT_ID = 'dsh-awake'
 /** 设置页 locale 命名空间（client 半注册到 dsh-client-locale）。 */
 export const SETTINGS_LOCALE_NS = 'settings.awake'
 
-/** 设置页数据面 RPC 通道（ctx.connection.rpc，绕开官方 settings wire 白名单，见 DESIGN.md 3.3）。 */
-export const RPC_CHANNEL = '/dsh-awake'
+/**
+ * 设置页数据面路由（绕开官方 settings wire 白名单，见 DESIGN.md 3.3）：
+ * POST /api/dsh-awake，请求体 `{ method, payload }` → 响应 `RpcResult`，由
+ * host 半 `connection.fetch.register` 注册为 /api 共享通道上的精确路由，
+ * 因此沿用 Connection 的 Host/Origin + 浏览器登录栅栏（401/403）。
+ *
+ * 不能用 `connection.rpc.handle`：那条专用通道在注册时会把 `webServer` 解析到
+ * 服务提供方 fiber 的祖先链上，而第三方插件的条目与 webserver 条目是兄弟，
+ * DSH 0.1.5-rc 起必抛 "cannot get property webServer without inject"（详见 README）。
+ */
+export const RPC_ROUTE_PATH = '/api/dsh-awake'
 
 /** 设置页在 settings.section 里的排序（越大越靠后）。 */
 export const SECTION_ORDER = 60

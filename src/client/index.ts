@@ -4,7 +4,7 @@
  * 注册设置页「防休眠」（settings.section，DESIGN.md 4.1）+ 后台浏览器 Wake Lock
  * 驱动（2.3，跟随会话列表 running 汇总；开关走 localStorage）。
  *
- * 数据面走 ctx.connection.rpc（通道 /dsh-awake，见 src/types.ts 的线格式）：
+ * 数据面走 POST /api/dsh-awake（见 src/types.ts 的线格式）：
  *   - awake.status / awake.refresh / awake.select / awake.version /
  *     awake.update / awake.restart
  *
@@ -21,8 +21,11 @@ import { isWebWakeLockEnabled, WakeLockManager } from './wake-lock.js'
 /** 插件包名（= ModuleLoader 条目 id）。 */
 export const name = PLUGIN_ID
 
-/** 依赖的客户端服务（slots / connection / sessions / locale 均为 DSH 平台模块）。 */
-export const inject = ['slots', 'connection', 'sessions', 'locale']
+/**
+ * 依赖的客户端服务（slots / sessions / locale 均为 DSH 平台模块）。
+ * 数据面走同源 fetch（/api/dsh-awake），不再需要 connection 客户端服务。
+ */
+export const inject = ['slots', 'sessions', 'locale']
 
 /** 装配入口：注册设置页 + 后台 Wake Lock 驱动。 */
 export function apply(ctx: ClientContext): void {
@@ -68,7 +71,7 @@ export function apply(ctx: ClientContext): void {
   )
 
   // —— 设置页「防休眠」（settings.section）——
-  const api = makeRpc(ctx.connection)
+  const api = makeRpc()
   ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
       {

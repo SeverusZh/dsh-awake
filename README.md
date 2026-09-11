@@ -1,4 +1,4 @@
-# dsh-awake · 守夜人（防休眠插件）v0.2.0
+# dsh-awake · 守夜人（防休眠插件）v0.2.1
 
 > DeepSeek Harness 插件：在 **agent 任务执行期间阻止操作系统休眠**，任务结束
 > （含出错、中断、取消）后恢复允许休眠。跨平台：**Windows / Linux / macOS**。
@@ -7,8 +7,13 @@
 `dsh-awake` 像守夜人一样盯住任务：任务开始 → 点亮「防休眠」，任务结束 → 熄灭。
 
 **v0.2.0 是破坏性重构**：方式子系统（平台优先、实现级粒度）、动态配置 schema、
-单通道 RPC 数据面（设置页不再碰官方 settings wire）、浏览器 Wake Lock 独立为
+单通道数据面（设置页不再碰官方 settings wire）、浏览器 Wake Lock 独立为
 每浏览器状态（localStorage）、一键更新/重启。0.1.x 旧配置在首次加载时自动迁移。
+
+**v0.2.1 修正 DSH 0.1.5-rc 兼容性**：数据面从 `connection.rpc` 专用通道改为
+`POST /api/dsh-awake` 精确路由——旧写法在新版 DSH 上启动即报
+`cannot get property "webServer" without inject`（整棵树加载失败），详见「数据面」
+一节；同时插件不再声明任何必需服务（headless / tui 档位也能加载）。
 
 ---
 
@@ -41,6 +46,9 @@ dsh-awake:
 ```
 
 - **宽松 schema**：`config` 是任意对象，键由方式声明、校验在 host 侧——加实现不动 schema。
+- **常开防休眠（页面底部开关）**：一键开启后服务端**无论是否有任务运行都持续
+  值守**（不等 turn/start）。它是**纯内存状态——不写配置文件，宿主重启即失效**，
+  每次需要时再开。模式为 `off`（服务端不值守）时无法开启，开关禁用并提示先选择方式。
 - **跨平台复制**：配置的 `platform` 与当前系统不一致时，运行时自动用当前平台默认
   方式，设置页黄色提示「配置来自 Windows，当前为 Linux…」，**不覆盖文件**；
   下次保存时 `platform` 更新为当前平台。
@@ -75,15 +83,19 @@ dsh-awake:
 [● 后端已连接] [● 值守中 · systemd]                 [🔄 刷新]
 ⚠ 配置来自 Windows，当前为 Linux，已使用默认方式 systemd   ← stale（黄）
 ❌ 防休眠未能生效：systemd-inhibit 未找到；…                ← 全失败（红）
-📦 新版本 v0.2.1（当前 v0.2.0）                  [一键更新]   ← 仅新版时渲染
+📦 新版本 v0.3.0（当前 v0.2.1）                  [一键更新]   ← 仅新版时渲染
 为当前浏览器开启页面防休眠                        [开/关]      ← localStorage
 插件运行模式
 [systemd-inhibit ▾]（不可用项 disabled + 原因）
 说明：通过 systemd-inhibit 阻止系统休眠，需要 systemd 环境…
 阻止原因 [dsh 任务执行中                ]                     ← 动态表单
+🛡 常开防休眠（无论是否有任务都持续值守）        [开/关]      ← 页面底部一键开关
 ```
 
 - 状态行每 5s 轮询；刷新按钮 = 重新探测方式可用性。
+- **常开防休眠**：页面底部开关，开启后服务端立即值守（无需任务）；**仅本次运行
+  生效，不写配置文件，宿主重启后恢复关闭**；模式为「关闭（off）」时开关禁用并
+  提示先选择方式。
 - 更新卡片：npm registry 比对版本，一键更新（`dsh plugin update`）+ 自动重启生效；
   DSH Desktop 环境不渲染（更新由桌面版管理）。
 
@@ -110,10 +122,25 @@ pnpm build       # host → lib/index.js（ESM）；client → lib/client.js（M
 
 ### 数据面
 
-所有设置页数据走 `ctx.connection.rpc` 通道 `/dsh-awake`（单通道，绕开官方
-settings wire 白名单），端点：`awake.status` / `awake.refresh` / `awake.select` /
-`awake.version` / `awake.update` / `awake.restart`；错误形状对齐
-`rpcErrorSchema`（`{ ok: false, error: { code, message, details } }`）。
+所有设置页数据走 `POST /api/dsh-awake`（单通道，绕开官方 settings wire 白名单），
+请求体 `{ method, payload }`、响应体 `RpcResult`；端点：`awake.status` /
+`awake.refresh` / `awake.select` / `awake.alwaysOn` / `awake.version` /
+`awake.update` / `awake.restart`；错误形状对齐 `rpcErrorSchema`
+（`{ ok: false, error: { code, message, details } }`）。
+
+host 半用 `connection.fetch.register` 注册这条 /api 共享通道的**精确路由**
+（官方 file-upload / deliverables / session-log-export 同款扩展点），因此自动
+沿用 Connection 的 Host/Origin + 浏览器登录栅栏（未登录 = 401）。
+
+> **为什么不用 `connection.rpc.handle`（0.2.1 起改）**
+> DSH 0.1.5-rc 的 `dsh-client-connection` 在注册专用通道时会执行
+> `owner.effect(() => owner.webServer.register(route))`，而 `owner` 是「提供方
+> fiber 的影子上下文」——`webServer` 于是沿 **webserver 条目的 fiber 祖先链**解析。
+> 第三方插件的条目与 webserver 条目是**兄弟**（profile 补丁把每个 bundle 的
+> insert 行平铺在同一层），祖先链上没有 webServer，于是启动即抛
+> `cannot get property "webServer" without inject` 并整棵树加载失败
+> （dsh-pocket 1.16.x 同源问题）。`connection.fetch` 只碰消费方自己的 fiber，
+> 没有这个限制。
 
 ---
 

@@ -1,8 +1,12 @@
 # dsh-awake v0.2.0 重构设计稿
 
 > 本文档是 dsh-awake 推倒重来的唯一设计依据。目标版本 0.2.0（破坏性重构）。
-> 参考：`dsh-win-mgr`（工程化结构）、`dsh-pocket`（RPC 通道 + 一键更新卡片）。
+> 参考：`dsh-win-mgr`（工程化结构）、`dsh-pocket`（设置页 + 一键更新卡片）。
 > 状态：设计评审中，未开始写代码。
+>
+> **0.2.1 兼容性修正**：DSH 0.1.5-rc 的 Connection 专用通道（`rpc.handle`）在第三方
+> 插件里必挂（`webServer` 解析到提供方祖先链）；数据面改为 `POST /api/dsh-awake`
+> 精确路由（`connection.fetch.register`），并且不再声明任何必需服务（见 3.3）。
 
 ## 0. 设计原则
 
@@ -13,8 +17,9 @@
 3. **动态 schema**：配置字段由方式自己声明（`fields` 描述符），持久化 schema 宽松、
    校验在 host 侧，加实现不动 schema。
 4. **分层**：client（浏览器 Wake Lock）与服务端（方式系统）完全解耦，互不依赖。
-5. **单通道数据面**：所有设置页数据走 `ctx.connection.rpc`，绕开官方 settings wire
-   白名单问题（win-mgr 实测踩坑），不碰 webServer。
+5. **单通道数据面**：所有设置页数据走 `POST /api/dsh-awake`（connection.fetch 精确
+   路由），绕开官方 settings wire 白名单问题（win-mgr 实测踩坑）；不碰 webServer，
+   也不用 `connection.rpc.handle`（0.2.1 起，原因见 3.3 与 README）。
 
 ## 1. 目录结构
 
@@ -22,12 +27,12 @@
 src/
 ├── index.ts            # host 入口（{ name, inject, apply } → new AwakeService）
 ├── types.ts            # 跨半线格式（ModeInfo / AwakeStatus / ConfigField / Patch…）
-├── shared/constants.ts # PLUGIN_ID / SETTINGS_NS / RPC_CHANNEL / SLOT_ID / LOCALSTORAGE_KEY…
+├── shared/constants.ts # PLUGIN_ID / SETTINGS_NS / RPC_ROUTE_PATH / SLOT_ID / LOCALSTORAGE_KEY…
 ├── host/               # host 半（node）
 │   ├── context.ts      # HostContext 最小结构类型（cordis 子集，零 @deepseek-ai 类型依赖）
 │   ├── service.ts      # AwakeService 编排器（构造即装配，仿 WinMgrService）
 │   ├── coordinator.ts  # 生命周期引用计数 + 回退链（拿锁/放锁）
-│   ├── rpc.ts          # /dsh-awake RPC 通道（status / select / refresh / version / update / restart）
+│   ├── rpc.ts          # 数据面路由 POST /api/dsh-awake（status / select / refresh / version / update / restart）
 │   ├── settings.ts     # settings 命名空间（宽松 schema + 动态校验 + stale 检测 + 老版配置转换）
 │   └── version.ts      # 版本信息（current = 磁盘包版本 / loaded = 运行中版本）
 ├── modes/              # ★ 方式子系统（host 半核心业务）
@@ -47,8 +52,8 @@ src/
 │       └── powercfg.ts
 └── client/             # client 半（浏览器；JSX）
     ├── index.ts        # settings.section 注册 + locale + 样式清理 effect
-    ├── types.ts        # ClientContext 最小结构类型（slots / connection / sessions / locale / effect）
-    ├── api.ts          # RPC 封装（status / select / refresh…）+ compareVersions
+    ├── types.ts        # ClientContext 最小结构类型（slots / sessions / locale / effect）
+    ├── api.ts          # 数据面封装（同源 fetch，status / select / refresh…）+ compareVersions
     ├── locales.ts      # zh/en 文案字典（zh 为基准，en 可后补）
     ├── state.ts        # 状态判别（LoadState / FallbackState 等）
     └── components/
@@ -138,6 +143,11 @@ export const linuxRegistry = {
 ### 3.1 协调器（coordinator.ts）——保留现有引用计数，加回退链
 
 - `ctx.on('session/event')`：`turn/start` 0→1 拿锁，`turn/end` 1→0 放锁（跨会话引用计数保留）。
+- **常开防休眠（`alwaysOn`）**：**纯内存状态**（host 服务字段，不写配置文件，
+  宿主重启即失效，设置页每次用时再开）。`alwaysOn: true` 时，协调器在
+  `openTurns = 0` 也保持/获取锁（RPC `awake.alwaysOn` → 对账），
+  `turn/end` 1→0 不触发放锁；关闭常开且无任务 → 放锁。
+  拿锁前置条件 = `openTurns > 0 || alwaysOn`。
 - 拿锁（回退语义，已确认）：
   ```
   首选 = 配置的 mode（若与当前平台匹配且在注册表中）
@@ -161,6 +171,7 @@ dsh-awake:
   mode: systemd       # 当前平台选中的方式（= 实现文件名）；'off' = 关闭服务端
   config:             # 该方式的配置；多数方式为空 {}，字段由方式声明
     why: 'dsh 任务执行中'
+# 注：常开防休眠（alwaysOn）不在此处——纯内存状态，见 3.1。
 ```
 
 - schema：`{ platform: string, mode: string, config: 任意对象 }`——**绝不在 schema 里枚举 config 键**。
@@ -171,20 +182,31 @@ dsh-awake:
   3. 用户下一次保存时 `platform` 更新为当前平台。
 - `mode === 'off'`：服务端不值守，状态行显示"未启用"，无红色提示（用户主动选择）。
 
-### 3.3 RPC 通道（rpc.ts）
+### 3.3 数据面路由（rpc.ts）
 
-- 通道名：`/dsh-awake`（host `ctx.connection.rpc.handle`，client `ctx.connection.rpc.call`）。
+- 路由：`POST /api/dsh-awake`（host `connection.fetch.register`，client 同源 `fetch`）。
+  请求体 `{ method, payload }`，响应体 `RpcResult`（`src/types.ts` 的 `RpcRequest`）。
+- 为什么不是 `connection.rpc.handle('/dsh-awake')`：DSH 0.1.5-rc 起那条专用通道
+  注册时会读**服务提供方 fiber 祖先链**上的 `webServer`（`owner.effect(() =>
+  owner.webServer.register(route))`，owner 是提供方 ctx 的影子），而第三方插件条目
+  与 webserver 条目是兄弟条目 → 必抛 `cannot get property "webServer" without
+  inject`，整棵加载树失败。`connection.fetch` 只碰消费方自己的 fiber，且天然
+  复用 /api 的 Host/Origin + 登录栅栏（401/403）。
 - 端点：
   | 端点 | 入参 | 返回 | 说明 |
   |---|---|---|---|
   | `awake.status` | `{}` | `AwakeStatus` | 状态 + 方式列表 + 可用性 + 版本 |
   | `awake.refresh` | `{}` | `AwakeStatus` | 失效可用性缓存重新探测（刷新按钮） |
   | `awake.select` | `{ mode, config? }` | `AwakeStatus` | 写配置：normalize → settings.update → 对账 |
+  | `awake.alwaysOn` | `{ enabled }` | `AwakeStatus` | 常开防休眠开关：**内存置位**（不写配置文件）→ 协调器对账（openTurns=0 也拿/放锁）；模式为 off 时开启报错 |
   | `awake.version` | `{}` | `{ current, loaded }` | 更新卡片用（也可并入 status） |
   | `awake.update` | `{}` | `{ ok, output, autoRestart }` | 一键更新（dsh plugin update，移植 dsh-pocket） |
   | `awake.restart` | `{}` | `{ ok }` | 重启宿主生效（更新后） |
 - 错误形状对齐 dsh-pocket rpcErrorSchema：`{ ok: false, error: { code, message, details } }`；
-  支持 signal.aborted → `cancelled`。
+  支持 signal.aborted → `cancelled`。请求体非 JSON / 缺 `method` → HTTP 400 + 信封。
+- 注册时机：connection 是 **web 专属可选服务**，host/service.ts 用
+  `ctx.inject(['connection'], …)` 等它出现再注册；插件 export `inject` 为空，
+  因此 headless / tui 档位照常值守，只是没有设置页数据面。
 
 ### 3.4 跨半线格式（types.ts）
 
@@ -215,7 +237,7 @@ export interface AttemptLog { id: string; ok: boolean; reason?: string }
 ### 4.1 注册（settings.section，对齐 dsh-pocket）
 
 ```ts
-export const inject = ['slots', 'connection', 'sessions', 'locale']
+export const inject = ['slots', 'sessions', 'locale']
 // ctx.slots.inject('settings.section', () => ctx.slots.register({
 //   name: 'settings.section', id: 'dsh-awake', order: 60,
 //   label: () => t('sectionLabel'), inject: () => ({ api }),
@@ -244,6 +266,8 @@ export const inject = ['slots', 'connection', 'sessions', 'locale']
 │ [systemd-inhibit ▾]   （不可用项 disabled + 原因）        │  ← 2.4 方式下拉
 │ 说明：通过 systemd-inhibit 阻止系统休眠，需要 systemd 环境 │  ← 选中方式的 description
 │ 阻止原因 [dsh 任务执行中                ]                 │  ← 动态表单（fields）
+│ ──────────────────────────────────────────────────────   │
+│ 🛡 常开防休眠（无论是否有任务都持续值守）      [开/关]    │  ← 2.5 常开开关（页面底部）
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -274,7 +298,7 @@ export const inject = ['slots', 'connection', 'sessions', 'locale']
 - `pnpm run build` = clean + tsc(host) + tsdown(host) + tsc(client) + tsdown(client)。
 - vitest（替换现有 tests/*.mjs 手写脚本）：单测 modes（注入 fake 的
   isAvailable/start/stop）、协调器引用计数与回退链、compareVersions、stale 检测、
-  描述符→表单渲染；集成：看门狗进程测试（保留）、RPC 往返。
+  描述符→表单渲染；集成：看门狗进程测试（保留）、数据面路由往返。
 
 ## 6. 迁移（0.1.1 → 0.2.0）
 
