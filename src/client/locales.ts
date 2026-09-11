@@ -53,6 +53,11 @@ export const zh = {
   savedTestOk: '已保存，试运行通过',
   savedTestFail: '已保存，但方式不可用：{reason}',
   saveFailed: '保存失败：{message}',
+  // —— 常开防休眠（页面底部）——
+  alwaysOnLabel: '常开防休眠',
+  alwaysOnHint: '开启后无论 dsh 是否在执行任务，都持续阻止系统休眠（仅本次运行，重启后恢复关闭）',
+  alwaysOnOffModeHint: '当前插件运行模式为「关闭」，请先选择一种方式再开启常开',
+  alwaysOnSaveFailed: '设置失败：{message}',
 } as const
 
 /** 键集（以 zh 为基准）。 */
@@ -103,4 +108,8 @@ export const en: Record<LocaleKey, string> = {
   savedTestOk: 'Saved — smoke test passed',
   savedTestFail: 'Saved, but mode unavailable: {reason}',
   saveFailed: 'Save failed: {message}',
+  alwaysOnLabel: 'Always-on anti-sleep',
+  alwaysOnHint: 'Keep the OS awake at all times, even when no tasks are running (runtime-only — resets after restart)',
+  alwaysOnOffModeHint: 'Server mode is off — pick a mode first to enable always-on',
+  alwaysOnSaveFailed: 'Failed to set: {message}',
 }

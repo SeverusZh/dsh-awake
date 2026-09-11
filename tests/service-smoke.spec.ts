@@ -124,4 +124,47 @@ runOnUsable('AwakeService.select 试运行', () => {
       expect(res.test?.reason).toBeTruthy()
     }
   }, 15000)
+
+  it('setAlwaysOn：开启 → 无任务也值守（真实 inhibit）；关闭 → 放锁；不写配置文件', async () => {
+    const why = 'dsh-awake-smoke-alwayson'
+    const { ctx, getUser } = makeFakeCtx({ version: 2, platform: 'linux', mode: 'systemd', config: { why } })
+    const service = new AwakeService(ctx, {})
+    // 初始 alwaysOn=false → 不值守。
+    expect(service.status().active).toBe(false)
+
+    const on = await service.setAlwaysOn(true)
+    expect(on.alwaysOn).toBe(true)
+    expect(on.openTurns).toBe(0) // 无任务
+    expect(on.active).toBe(true) // 常开值守
+    expect(getUser()).not.toHaveProperty('alwaysOn') // 纯内存：settings 不被污染
+    await new Promise((r) => setTimeout(r, 600))
+    expect(execSync('systemd-inhibit --list', { encoding: 'utf8' })).toContain(why)
+
+    const off = await service.setAlwaysOn(false)
+    expect(off.alwaysOn).toBe(false)
+    expect(off.active).toBe(false)
+    await new Promise((r) => setTimeout(r, 600))
+    expect(execSync('systemd-inhibit --list', { encoding: 'utf8' })).not.toContain(why)
+  }, 20000)
+
+  it('常开是内存状态：新宿主（新 AwakeService）启动后恢复关闭', async () => {
+    const why = 'dsh-awake-smoke-alwayson-reset'
+    const user = { version: 2, platform: 'linux', mode: 'systemd', config: { why } }
+    const first = new AwakeService(makeFakeCtx(user).ctx, {})
+    await first.setAlwaysOn(true)
+    expect(first.status().alwaysOn).toBe(true)
+    await first.setAlwaysOn(false) // 清理 inhibit，避免污染后续断言
+
+    // 模拟宿主重启：同一份 settings（无 alwaysOn 键），新服务实例默认关闭。
+    const second = new AwakeService(makeFakeCtx(user).ctx, {})
+    expect(second.status().alwaysOn).toBe(false)
+    expect(second.status().active).toBe(false)
+    expect(second.status().openTurns).toBe(0)
+  }, 15000)
+
+  it('setAlwaysOn(true)：模式为 off → 拒绝并提示', async () => {
+    const { ctx } = makeFakeCtx({ version: 2, platform: 'linux', mode: 'off', config: {} })
+    const service = new AwakeService(ctx, {})
+    await expect(service.setAlwaysOn(true)).rejects.toThrow('请先选择一种方式')
+  })
 })

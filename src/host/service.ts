@@ -30,6 +30,8 @@ export class AwakeService {
   private readonly coordinator: AwakeCoordinator
   private readonly settings: AwakeSettings
   private readonly probeCache = new Map<string, ProbeCacheEntry>()
+  /** 常开防休眠：纯内存状态（不写配置文件，宿主重启即失效，设置页每次用时再开）。 */
+  private alwaysOn = false
 
   constructor(ctx: HostContext, config: Record<string, unknown> = {}) {
     const platform = detectPlatform()
@@ -44,7 +46,7 @@ export class AwakeService {
       registry: this.registry,
       resolve: () => {
         const parsed: ParsedAwakeSettings = settingsRef.snapshot
-        return { modeId: parsed.modeId, config: parsed.config }
+        return { modeId: parsed.modeId, config: parsed.config, alwaysOn: this.alwaysOn }
       },
       logger: ctx.logger,
     })
@@ -91,6 +93,7 @@ export class AwakeService {
       active: this.coordinator.isActive,
       openTurns: this.coordinator.openTurnCount,
       stale: parsed.stale,
+      alwaysOn: this.alwaysOn,
       configured: { platform: parsed.configuredPlatform, mode: parsed.configuredMode },
       attempts: [...this.coordinator.attemptLog],
       modes: this.modeInfos(),
@@ -98,6 +101,22 @@ export class AwakeService {
       version: versionInfo(),
       desktop: this.desktop,
     }
+  }
+
+  /**
+   * 常开防休眠开关（设置页一键开关）：纯内存状态，不写配置文件，宿主重启即失效。
+   * 开启 → 立即对账拿锁（无任务也值守）；关闭 → 无任务时放锁。
+   * 开启时若当前方式为 off（服务端不值守）→ 拒绝并给出提示。
+   */
+  async setAlwaysOn(enabled: boolean): Promise<AwakeStatus> {
+    if (enabled && this.settings.snapshot.modeId === null) {
+      throw new Error('当前插件运行模式为「关闭（off）」，请先选择一种方式再开启常开防休眠')
+    }
+    this.alwaysOn = enabled
+    // 对账：常开开启 → 立即拿锁；关闭且无任务 → 放锁。
+    await this.coordinator.reconcile()
+    await this.coordinator.drain()
+    return this.status()
   }
 
   /** 失效可用性缓存重新探测（刷新按钮）。 */

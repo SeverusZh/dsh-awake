@@ -54,6 +54,7 @@ export function makeRpc(connection: ConnectionService) {
     status: () => call<AwakeStatus>('awake.status', {}),
     refresh: () => call<AwakeStatus>('awake.refresh', {}),
     select: (req: SelectRequest) => call<SelectResponse>('awake.select', req),
+    setAlwaysOn: (enabled: boolean) => call<AwakeStatus>('awake.alwaysOn', { enabled }),
     version: () => call<{ current: string; loaded: string }>('awake.version', {}),
     update: () => call<UpdateResult>('awake.update', {}),
     restart: () => call<{ ok: boolean; hint?: string }>('awake.restart', {}),

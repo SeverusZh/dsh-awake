@@ -1,5 +1,6 @@
 /**
- * 设置页主组件：2.1 状态行 + 2.2 提示区 + 2.2 更新卡片 + 2.3 浏览器开关 + 2.4 方式选择。
+ * 设置页主组件：2.1 状态行 + 2.2 提示区 + 2.2 更新卡片 + 2.3 浏览器开关 + 2.4 方式选择
+ * + 常开防休眠开关（页面底部）。
  * 打开时拉取 + 每 5s 轮询（dsh-pocket 同款）；刷新按钮 = awake.refresh。
  */
 import { useEffect, useRef, useState } from 'react'
@@ -7,6 +8,7 @@ import type { AwakeStatus } from '../../types.js'
 import type { AwakeApi } from '../api.js'
 import type { LoadState } from '../state.js'
 import type { WakeLockManager } from '../wake-lock.js'
+import { AlwaysOnToggle } from './AlwaysOnToggle.js'
 import { BrowserWakeToggle } from './BrowserWakeToggle.js'
 import { ModeSelect } from './ModeSelect.js'
 import { NoticeArea } from './NoticeArea.js'
@@ -82,6 +84,8 @@ export function AwakeSection({ api, manager, t }: AwakeSectionProps): React.Reac
             <BrowserWakeToggle manager={manager} t={t} />
           </div>
           <ModeSelect data={data} api={api} onStatus={onStatus} t={t} />
+          {/* 常开防休眠：页面最底部的一键开关（无论是否有任务都值守） */}
+          <AlwaysOnToggle data={data} api={api} onStatus={onStatus} t={t} />
         </>
       )}
     </div>

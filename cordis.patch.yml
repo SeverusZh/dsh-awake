@@ -21,6 +21,9 @@
 #
 # 浏览器 Wake Lock 是「每浏览器」状态，走 localStorage（键 dsh-awake.webWakeLock，
 # 默认开），不进配置文件；与 2.4 服务端方式完全独立。
+#
+# 「常开防休眠」（设置页底部开关）是纯内存状态：不写配置文件，宿主重启即失效，
+# 每次需要时再开（RPC awake.alwaysOn 控制，详见 README）。
 
 - insert:
     - id: dsh-awake

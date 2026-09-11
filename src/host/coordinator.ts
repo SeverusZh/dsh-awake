@@ -1,12 +1,13 @@
 /**
- * AwakeCoordinator：生命周期引用计数 + 回退链（拿锁/放锁）。
+ * AwakeCoordinator：生命周期引用计数 + 回退链（拿锁/放锁）+ 常开防休眠。
  *
- * - `session/event` 的 turn/start 0→1 拿锁、turn/end 1→0 放锁（跨会话引用计数）；
+ * - `session/event` 的 turn/start 0→1 拿锁、turn/end 1→0 放锁（跨会话引用计数；
+ *   开启常开防休眠后，任务全部结束也保持值守）；
  * - 拿锁按「首选 + 平台 order 回退链」逐个尝试：新鲜 isAvailable() 预检 →
  *   start()；全部失败 → effective = null（关闭），attempts 记录每个失败原因；
  * - 所有拿/放锁动作走一条串行 promise 链，绝不交错；
- * - 设置变更（settings/updated）→ 若 openTurns > 0 先放锁再按新配置拿锁（对账，
- *   同一轮事件去重）；
+ * - 设置变更（settings/updated）→ 先放锁再按新配置拿锁（对账，同一轮事件去重；
+ *   常开防休眠开启时 openTurns = 0 也对账）；
  * - 插件卸载 → 无条件放锁。
  */
 import type { AttemptLog } from '../types.js'
@@ -17,8 +18,8 @@ import type { LoggerLike } from './context.js'
 export interface CoordinatorDeps {
   /** 当前平台注册表；undefined = 平台不受支持（永不值守）。 */
   readonly registry: PlatformRegistry | undefined
-  /** 解析当前配置：modeId null = 关闭（off）；config 是该方式的配置。 */
-  resolve(): { readonly modeId: string | null; readonly config: Record<string, unknown> }
+  /** 解析当前配置：modeId null = 关闭（off）；config 是该方式的配置；alwaysOn = 常开防休眠。 */
+  resolve(): { readonly modeId: string | null; readonly config: Record<string, unknown>; readonly alwaysOn: boolean }
   readonly logger: LoggerLike
 }
 
@@ -53,23 +54,25 @@ export class AwakeCoordinator {
     return this.attempts
   }
 
-  /** session/event 处理：turn/start 0→1 拿锁，turn/end 1→0 放锁。 */
+  /** session/event 处理：turn/start 0→1 拿锁，turn/end 1→0 放锁（常开时保持）。 */
   onSessionEvent(event: { readonly type: string }): void {
     if (event.type === 'turn/start') {
       this.openTurns += 1
       if (this.openTurns === 1) void this.acquire()
     } else if (event.type === 'turn/end') {
       if (this.openTurns > 0) this.openTurns -= 1
-      if (this.openTurns === 0) void this.release()
+      // 常开防休眠：任务全部结束后仍保持值守；否则 1→0 放锁。
+      if (this.openTurns === 0 && !this.deps.resolve().alwaysOn) void this.release()
     }
   }
 
   /**
    * 设置变更对账：若在值守则先放锁再按新配置拿锁。
    * 同一轮 settings 事件可能触发多次调用，去重为一次（复用同一 promise）。
+   * 常开防休眠开启后，即使 openTurns = 0 也需要对账（拿锁/换锁）。
    */
   reconcile(): Promise<void> {
-    if (this.openTurns <= 0) return Promise.resolve()
+    if (this.state === 'idle' && !this.shouldHold()) return Promise.resolve()
     if (this.reconcilePromise !== null) return this.reconcilePromise
     this.reconcilePromise = this.enqueue(async () => {
       this.reconcilePromise = null
@@ -101,10 +104,15 @@ export class AwakeCoordinator {
     return run
   }
 
+  /** 是否应持有锁：有任务运行，或开启了常开防休眠。 */
+  private shouldHold(): boolean {
+    return this.openTurns > 0 || this.deps.resolve().alwaysOn
+  }
+
   private acquire(): Promise<void> {
-    if (this.openTurns <= 0 || this.state !== 'idle') return Promise.resolve()
+    if (!this.shouldHold() || this.state !== 'idle') return Promise.resolve()
     return this.enqueue(async () => {
-      if (this.openTurns <= 0 || this.state !== 'idle') return
+      if (!this.shouldHold() || this.state !== 'idle') return
       this.state = 'acquiring'
       await this.doAcquire()
     })
@@ -128,7 +136,7 @@ export class AwakeCoordinator {
     const { registry } = this.deps
     this.session = null
     this.effective = null
-    if (registry === undefined || this.openTurns <= 0) {
+    if (registry === undefined || !this.shouldHold()) {
       this.attempts = []
       this.state = 'idle'
       return

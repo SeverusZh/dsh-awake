@@ -67,6 +67,8 @@ export interface AwakeStatus {
   readonly openTurns: number
   /** 配置来自其他平台 / 方式失效（解析兜底，不覆盖文件）。 */
   readonly stale: boolean
+  /** 常开防休眠：无论是否有任务运行都持续值守；仅内存状态，不写配置文件，重启即失效。 */
+  readonly alwaysOn: boolean
   /** stale 时的配置原文（提示文案用）。 */
   readonly configured: { readonly platform: string | null; readonly mode: string | null }
   /** 最近一次拿锁的尝试记录。 */

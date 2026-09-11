@@ -60,7 +60,7 @@ function makeRegistry(modes: WakeMode[]): PlatformRegistry {
 /** 构造一个可注入配置的测试环境。 */
 function setup(modes: WakeMode[]) {
   const registry = makeRegistry(modes)
-  let configured = { modeId: registry.defaultMode, config: {} as Record<string, unknown> }
+  let configured = { modeId: registry.defaultMode, config: {} as Record<string, unknown>, alwaysOn: false }
   const coordinator = new AwakeCoordinator({
     registry,
     resolve: () => configured,
@@ -70,7 +70,10 @@ function setup(modes: WakeMode[]) {
     coordinator,
     registry,
     setMode: (modeId: string | null, config: Record<string, unknown> = {}) => {
-      configured = { modeId, config }
+      configured = { ...configured, modeId, config }
+    },
+    setAlwaysOn: (alwaysOn: boolean) => {
+      configured = { ...configured, alwaysOn }
     },
   }
 }
@@ -177,13 +180,83 @@ describe('回退链', () => {
   it('平台不受支持（registry undefined）→ 永不值守', async () => {
     const coordinator = new AwakeCoordinator({
       registry: undefined,
-      resolve: () => ({ modeId: 'systemd', config: {} }),
+      resolve: () => ({ modeId: 'systemd', config: {}, alwaysOn: false }),
       logger: silentLogger,
     })
     coordinator.onSessionEvent({ type: 'turn/start' })
     await coordinator.drain()
     expect(coordinator.effectiveMode).toBeNull()
     expect(coordinator.isActive).toBe(false)
+  })
+})
+
+describe('常开防休眠（alwaysOn）', () => {
+  it('开启常开 → 无任务（openTurns = 0）时 reconcile 也拿锁', async () => {
+    const a = fakeMode('a')
+    const { coordinator, setAlwaysOn } = setup([a])
+    setAlwaysOn(true)
+    await coordinator.reconcile()
+    await coordinator.drain()
+    expect(coordinator.isActive).toBe(true)
+    expect(coordinator.effectiveMode).toBe('a')
+    expect(a.active).toBe(true)
+    expect(coordinator.openTurnCount).toBe(0)
+  })
+
+  it('开启常开 → turn/end 1→0 后仍保持值守', async () => {
+    const a = fakeMode('a')
+    const { coordinator, setAlwaysOn } = setup([a])
+    setAlwaysOn(true)
+    await coordinator.reconcile()
+    await coordinator.drain()
+
+    coordinator.onSessionEvent({ type: 'turn/start' })
+    await coordinator.drain()
+    expect(a.started).toBe(1) // 常开已持锁，turn/start 不重复启动
+
+    coordinator.onSessionEvent({ type: 'turn/end' })
+    await coordinator.drain()
+    expect(coordinator.openTurnCount).toBe(0)
+    expect(coordinator.isActive).toBe(true) // 常开：不因任务结束而放锁
+    expect(a.active).toBe(true)
+    expect(a.stopped).toBe(0)
+  })
+
+  it('关闭常开（任务已全部结束）→ 放锁', async () => {
+    const a = fakeMode('a')
+    const { coordinator, setAlwaysOn } = setup([a])
+    setAlwaysOn(true)
+    await coordinator.reconcile()
+    await coordinator.drain()
+    expect(a.active).toBe(true)
+
+    setAlwaysOn(false)
+    await coordinator.reconcile()
+    await coordinator.drain()
+    expect(coordinator.isActive).toBe(false)
+    expect(a.active).toBe(false)
+    expect(a.stopped).toBe(1)
+  })
+
+  it('常开 + 模式 off → 不值守（modeId null 优先）', async () => {
+    const a = fakeMode('a')
+    const { coordinator, setMode, setAlwaysOn } = setup([a])
+    setMode(null)
+    setAlwaysOn(true)
+    await coordinator.reconcile()
+    await coordinator.drain()
+    expect(coordinator.isActive).toBe(false)
+    expect(a.started).toBe(0)
+  })
+
+  it('常开 + 全部方式失败 → 不值守，attempts 记录原因', async () => {
+    const a = fakeMode('a', { available: false })
+    const { coordinator, setAlwaysOn } = setup([a])
+    setAlwaysOn(true)
+    await coordinator.reconcile()
+    await coordinator.drain()
+    expect(coordinator.isActive).toBe(false)
+    expect(coordinator.attemptLog).toEqual([{ id: 'a', ok: false, reason: 'a 不可用' }])
   })
 })
 

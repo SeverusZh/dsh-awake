@@ -38,6 +38,7 @@ export interface RpcService {
   status(): AwakeStatus
   refresh(): AwakeStatus
   select(mode: string, config: Record<string, unknown>): Promise<SelectResponse>
+  setAlwaysOn(enabled: boolean): Promise<AwakeStatus>
 }
 
 export interface RpcDeps {
@@ -80,6 +81,10 @@ export function installAwakeRpc(ctx: HostContext, deps: RpcDeps): () => Promise<
           const config =
             typeof p.config === 'object' && p.config !== null ? (p.config as Record<string, unknown>) : {}
           return ok(await service.select(p.mode, config))
+        }
+        if (endpoint === 'awake.alwaysOn') {
+          if (typeof p.enabled !== 'boolean') return fail('bad-request', 'alwaysOn 需要 enabled 布尔字段')
+          return ok(await service.setAlwaysOn(p.enabled))
         }
         if (endpoint === 'awake.version') {
           return ok(versionInfo())

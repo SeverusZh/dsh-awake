@@ -84,6 +84,11 @@ describe('buildBase（入口配置 → base）', () => {
     expect(base).toEqual({ version: 2, platform: 'linux', mode: 'systemd', config: {} })
   })
 
+  it('常开防休眠不读配置（纯内存状态，重启即失效）', () => {
+    // 即使入口配置里写了 alwaysOn，也不应进入 base（settings 不再持久化该键）。
+    expect(buildBase({ mode: 'systemd', alwaysOn: true }, 'linux')).not.toHaveProperty('alwaysOn')
+  })
+
   it('空入口 → 当前平台默认', () => {
     expect(buildBase(undefined, 'darwin').mode).toBe('caffeinate')
     expect(buildBase(undefined, 'win32').mode).toBe('powershell')
