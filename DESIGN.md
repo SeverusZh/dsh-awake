@@ -61,7 +61,7 @@ src/
 │       ├── powershell.ts
 │       └── powercfg.ts
 └── client/             # client 半（浏览器；JSX）
-    ├── index.ts        # settings.section 注册 + locale + 样式清理 effect
+    ├── index.ts        # plugins.bundle.config 注册 + locale + 样式清理 effect
     ├── types.ts        # ClientContext 最小结构类型（slots / sessions / locale / effect）
     ├── api.ts          # 数据面封装（同源 fetch，status / select / refresh…）+ compareVersions
     ├── locales.ts      # zh/en 文案字典（zh 为基准，en 可后补）
@@ -258,25 +258,30 @@ export interface ModeInfo {
 export interface AttemptLog { id: string; ok: boolean; reason?: string }
 ```
 
-## 4. client 半（设置页）
+## 4. client 半（插件详情页配置面板）
 
-### 4.1 注册（settings.section，对齐 dsh-pocket）
+### 4.1 注册（plugins.bundle.config，对齐 dsh-yolo-mode 0.6.x）
 
 ```ts
 export const inject = ['slots', 'sessions', 'locale']
-// ctx.slots.inject('settings.section', () => ctx.slots.register({
-//   name: 'settings.section', id: 'dsh-awake', order: 60,
-//   label: () => t('sectionLabel'), inject: () => ({ api }),
+// ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
+//   name: 'plugins.bundle.config', key: 'dsh-awake', locale: 'settings.awake',
+//   inject: () => ({ api, manager, t }),
 // }, AwakeSection))
 ```
 
+- 配置渲染在「插件列表 → dsh-awake」详情页（包描述与组件行之间）。该 keyed slot 以
+  npm 包名为 key，只在注册了与包名相同的 key 时页面才渲染配置区块。bundle 页只请求
+  `view:'page'`，且不传宿主 `form`（草稿/校验/保存由本插件自持，走 `/api/dsh-awake`）。
+- `settings.section` 已退役，DSH 设置面板不再出现本插件；宿主侧 `settings.configure({ auto: false })`
+  保留，抑制宿主按 Config schema 自动生成的设置页。
 - `sessions`：2.3 浏览器 Wake Lock 需要"是否有任务在运行"（保留现有 WakeLockManager 逻辑）。
 - `locale`：zh 基准 + en 可后补（结构预留，先只填 zh 也行）。
 
 ### 4.2 页面布局（2.1–2.4 全部确认项）
 
 ```
-┌─ 防休眠（settings.section 标签）──────────────────────────┐
+┌─ dsh-awake（插件详情页配置面板）─────────────────────────┐
 │ [● 后端已连接] [● 值守中 · systemd]            [🔄 刷新] │  ← 2.1 状态行
 │ ──────────────────────────────────────────────────────   │
 │ ⚠ 配置来自 Windows，当前为 Linux，已使用默认方式 systemd  │  ← 提示区（黄）
@@ -343,7 +348,7 @@ export const inject = ['slots', 'sessions', 'locale']
 2. **modes 子系统**：shared 工具（看门狗/terminate/runCommand/probe）+ 6 个实现 +
    3 个平台注册表（原 shell.ts/power.ts 逻辑平移，抽公共部分）。
 3. **host**：coordinator（引用计数 + 回退）+ settings（宽松 schema + stale）+ rpc + service 入口。
-4. **client**：api.ts + 5 个组件 + settings.section 注册 + WakeLockManager 接 localStorage。
+4. **client**：api.ts + 5 个组件 + plugins.bundle.config 注册 + WakeLockManager 接 localStorage。
 5. **收尾**：迁移逻辑 + README + 版本 bump + 打包验证（`pnpm build` + 装进测试 profile 验收）。
 
 ## 8. 待确认的小点（未阻塞，默认值如下）

@@ -156,11 +156,16 @@ export class AwakeSettings {
     return parseSettings(buildBase(readLiveConfig(this.readSource()), platform), platform)
   }
 
-  /** 装配：页面策略（自定义页）+ 写入钩子 + 外部配置变更监听。 */
+  /** 装配：页面策略（抑制自动页）+ 写入钩子 + 外部配置变更监听。 */
   attach(): void {
-    // 页面策略：awake 自带 settings.section 设置页 → 不让框架自动生成表单。
-    // （configure 是 0.1.7 起 SettingsForms 的 API；老版 settings 服务没有它，
-    //   这里做能力探测，避免在旧宿主上抛错。）
+    // 页面策略：配置面板已迁到「插件列表 → 插件详情」（plugins.bundle.config），
+    // 不再向设置面板注册 settings.section。此时必须 auto:false —— settings 服务
+    // 的 describe() 对每个插件条目默认 autoGenerate=true（presentations.get(fiber)
+    // ?.auto ?? true），会自动按插件 Config schema 生成一个设置页；不关掉它，本
+    // 插件会重新出现在 DSH 设置面板，与「退役 settings.section」的决定相悖。
+    // （这与 dsh-yolo-mode 0.6.2 保留 configure({auto:false}) 的做法一致。）
+    // configure 是 0.1.7 起 SettingsForms 的 API；老版 settings 服务没有它，
+    // 这里做能力探测，避免在旧宿主上抛错。
     this.ctx.inject(['settings'], (sctx) => {
       const settings = sctx.settings
       if (settings === undefined || typeof settings.configure !== 'function') return

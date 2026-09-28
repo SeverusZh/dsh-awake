@@ -1,8 +1,10 @@
 /**
  * dsh-awake —— 浏览器半入口（window.__ModuleLoader__ bundle）。
  *
- * 注册设置页「防休眠」（settings.section，DESIGN.md 4.1）+ 后台浏览器 Wake Lock
- * 驱动（2.3，跟随会话列表 running 汇总；开关走 localStorage）。
+ * 注册「插件列表 → 插件详情 → dsh-awake」配置面板（plugins.bundle.config，
+ * DESIGN.md 4.1）+ 后台浏览器 Wake Lock 驱动（2.3，跟随会话列表 running 汇总；
+ * 开关走 localStorage）。设置页（settings.section）已退役：不再向 DSH 设置面板
+ * 注册任何 slot。
  *
  * 数据面走 POST /api/dsh-awake（见 src/types.ts 的线格式）：
  *   - awake.status / awake.refresh / awake.select / awake.version /
@@ -14,7 +16,7 @@
 import { makeRpc } from './api.js'
 import { AwakeSection } from './components/AwakeSection.js'
 import { en, zh } from './locales.js'
-import { PLUGIN_ID, SECTION_ORDER, SETTINGS_LOCALE_NS, SETTINGS_SLOT_ID } from '../shared/constants.js'
+import { PLUGIN_ID, SETTINGS_LOCALE_NS } from '../shared/constants.js'
 import type { ClientContext } from './types.js'
 import { isWebWakeLockEnabled, WakeLockManager } from './wake-lock.js'
 
@@ -70,15 +72,19 @@ export function apply(ctx: ClientContext): void {
     `${PLUGIN_ID}: wake lock driver`,
   )
 
-  // —— 设置页「防休眠」（settings.section）——
+  // —— 插件列表 → 插件详情 → dsh-awake（plugins.bundle.config）——
+  // 配置渲染在本插件于插件管理页的详情页（「插件列表 → dsh-awake」），位于包描述
+  // 与组件行之间。该 keyed slot 以 npm 包名为 key，且页面只在注册了与包名相同的
+  // key 时才渲染配置区块（configured = ledger.bundles.has(pkg.name)）。bundle 页
+  // 只请求 view:'page' 且不传宿主 form——草稿/校验/保存由本插件自持，走
+  // /api/dsh-awake 数据面。settings.section 已退役，DSH 设置面板不再出现本插件。
   const api = makeRpc()
-  ctx.slots.inject('settings.section', () =>
+  ctx.slots.inject('plugins.bundle.config', () =>
     ctx.slots.register(
       {
-        name: 'settings.section',
-        id: SETTINGS_SLOT_ID,
-        order: SECTION_ORDER,
-        label: () => t('sectionLabel'),
+        name: 'plugins.bundle.config',
+        key: PLUGIN_ID,
+        locale: SETTINGS_LOCALE_NS,
         inject: () => ({ api, manager, t }),
       },
       AwakeSection,

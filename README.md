@@ -1,4 +1,4 @@
-# dsh-awake · 守夜人（防休眠插件）v0.2.2
+# dsh-awake · 守夜人（防休眠插件）v0.2.3
 
 > DeepSeek Harness 插件：在 **agent 任务执行期间阻止操作系统休眠**，任务结束
 > （含出错、中断、取消）后恢复允许休眠。跨平台：**Windows / Linux / macOS**。
@@ -19,8 +19,16 @@
 （旧设置 API），设置改为「插件 Config schema + `configEditor`」。本版把配置声明迁到
 插件自己的 `Config` schema（live 字段 `.volatile()`，`config.<field>.get()` 读实时值），
 写入走 `configEditor.edit(entry, …)` 落盘当前 profile 的插件配置；页面策略用
-`settings.configure({ auto: false })`（awake 自带设置页）。同时移除 `dsh.client.inject`
-里 0.1.7 已删除的 `@deepseek-ai/dsh-client-runtime`（换成 `@deepseek-ai/dsh-cordis-client-runner`）。
+`settings.configure({ auto: false })`（抑制宿主按 Config schema 自动生成的设置页）。
+同时移除 `dsh.client.inject` 里 0.1.7 已删除的 `@deepseek-ai/dsh-client-runtime`
+（换成 `@deepseek-ai/dsh-cordis-client-runner`）。
+
+**v0.2.3 配置面板迁移**：配置面板从 DSH **设置页板块**（`settings.section`）迁移到
+**插件列表 → 插件详情 → dsh-awake**（slot `plugins.bundle.config`，以 npm 包名为 key）。
+`settings.section` 已退役，DSH 设置面板不再出现本插件；宿主侧 `settings.configure({ auto: false })`
+保留（否则宿主会按 Config schema 自动生成一个设置页，重新把插件塞回设置面板）。
+组件、数据面（`POST /api/dsh-awake`）、Config schema、迁移逻辑均不变。
+做法对齐 dsh-yolo-mode 0.6.x。
 
 ---
 
@@ -53,9 +61,9 @@ dsh plugin --profile web add dsh-awake
 
 ## 配置格式
 
-配置在设置页「防休眠」里热改。**DSH 0.1.7 起，配置持久化在当前 profile 的插件条目
-config**（即 profile 配置层里 `dsh-awake` 条目的 `config:`，由 `configEditor` 写入；
-写入是 live 的 `.volatile()` 更新，不重启插件）。形状：
+配置在「插件列表 → 插件详情 → dsh-awake」面板里热改。**DSH 0.1.7 起，配置持久化在当前
+profile 的插件条目 config**（即 profile 配置层里 `dsh-awake` 条目的 `config:`，由
+`configEditor` 写入；写入是 live 的 `.volatile()` 更新，不重启插件）。形状：
 
 ```yaml
 # profile 配置层（cordis.patch.yml 里的 dsh-awake 条目 config）
@@ -74,7 +82,7 @@ config:             # 该方式的配置；字段由方式自己声明（动态�
   值守**（不等 turn/start）。它是**纯内存状态——不写配置文件，宿主重启即失效**，
   每次需要时再开。模式为 `off`（服务端不值守）时无法开启，开关禁用并提示先选择方式。
 - **跨平台复制**：配置的 `platform` 与当前系统不一致时，运行时自动用当前平台默认
-  方式，设置页黄色提示「配置来自 Windows，当前为 Linux…」，**不覆盖文件**；
+  方式，配置面板黄色提示「配置来自 Windows，当前为 Linux…」，**不覆盖文件**；
   下次保存时 `platform` 更新为当前平台。
 - **`mode: 'off'`**：服务端不值守，状态行显示「未启用」，无红色提示（用户主动选择）。
 - 插件升级后配置的方式被删除 → 同样兜底到默认方式并提示。
@@ -88,7 +96,7 @@ config:             # 该方式的配置；字段由方式自己声明（动态�
 | Windows | `powershell`（SetThreadExecutionState）、`powercfg` | `powershell` | 看门狗进程持锁 / 临时改电源方案 |
 
 拿锁回退链：首选 = 配置的方式；失败则按平台 order 依次尝试；全部失败 →
-服务端未值守，设置页红色列出每个原因。
+服务端未值守，配置面板红色列出每个原因。
 
 ### 浏览器 Wake Lock（2.3）
 
@@ -99,9 +107,9 @@ config:             # 该方式的配置；字段由方式自己声明（动态�
 
 ---
 
-## 设置页
+## 配置面板（插件列表 → 插件详情）
 
-打开 dsh web → 设置 → **防休眠**：
+打开 dsh web → 插件列表 → 打开 **dsh-awake** 详情页（面板位于包描述与组件行之间）：
 
 ```
 [● 后端已连接] [● 值守中 · systemd]                 [🔄 刷新]

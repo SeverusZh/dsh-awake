@@ -1,5 +1,5 @@
 /**
- * dsh-awake —— DeepSeek Harness 防休眠插件（守夜人）v0.2.2。
+ * dsh-awake —— DeepSeek Harness 防休眠插件（守夜人）v0.2.3。
  *
  * host（node）半入口：监听 agent 会话生命周期（`session/event` 的
  * `turn/start` / `turn/end`），在「有任务正在执行」期间持有防休眠锁，
