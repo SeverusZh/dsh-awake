@@ -1,4 +1,4 @@
-# dsh-awake · 守夜人（防休眠插件）v0.2.1
+# dsh-awake · 守夜人（防休眠插件）v0.2.2
 
 > DeepSeek Harness 插件：在 **agent 任务执行期间阻止操作系统休眠**，任务结束
 > （含出错、中断、取消）后恢复允许休眠。跨平台：**Windows / Linux / macOS**。
@@ -14,6 +14,25 @@
 `POST /api/dsh-awake` 精确路由——旧写法在新版 DSH 上启动即报
 `cannot get property "webServer" without inject`（整棵树加载失败），详见「数据面」
 一节；同时插件不再声明任何必需服务（headless / tui 档位也能加载）。
+
+**v0.2.2 适配 DSH 0.1.7**：DSH 0.1.7 移除了 `settings.register` / `settings.get`
+（旧设置 API），设置改为「插件 Config schema + `configEditor`」。本版把配置声明迁到
+插件自己的 `Config` schema（live 字段 `.volatile()`，`config.<field>.get()` 读实时值），
+写入走 `configEditor.edit(entry, …)` 落盘当前 profile 的插件配置；页面策略用
+`settings.configure({ auto: false })`（awake 自带设置页）。同时移除 `dsh.client.inject`
+里 0.1.7 已删除的 `@deepseek-ai/dsh-client-runtime`（换成 `@deepseek-ai/dsh-cordis-client-runner`）。
+
+---
+
+## 兼容性
+
+- **支持 DSH `0.1.7-rc.2`**（设置子系统迁移至 Config schema + `SettingsForms`/`configEditor`）。
+- **不兼容 DSH 0.1.5-rc 及更早**：那些版本用的是旧的 `settings.register` / `settings.get`
+  API，设置子系统已被 0.1.7 整体替换。旧宿主请继续用 **dsh-awake `0.2.1`**。
+- 从 0.2.x 升级到 0.2.2：DSH 首次启动会把旧的 `settings.yaml` 里的 `dsh-awake`
+  段一次性导入为插件配置（`SettingsForms.importLegacyDocument`），设置基本无感
+  迁移；更早的 0.1.x 旧形状（`enabled` / `shellWakeLock` / …）仍由宿主侧自动识别
+  并转换。
 
 ---
 
@@ -32,18 +51,23 @@ dsh plugin --profile web add dsh-awake
 
 ---
 
-## 配置格式（v0.2.0）
+## 配置格式
 
-配置在设置页「防休眠」里热改（`$DSH_HOME/settings.yaml` 持久化）。形状：
+配置在设置页「防休眠」里热改。**DSH 0.1.7 起，配置持久化在当前 profile 的插件条目
+config**（即 profile 配置层里 `dsh-awake` 条目的 `config:`，由 `configEditor` 写入；
+写入是 live 的 `.volatile()` 更新，不重启插件）。形状：
 
 ```yaml
-dsh-awake:
-  version: 2          # 配置文件版本：2；有老配置（0.1.x）自动转换
-  platform: linux     # 锚点：上次写入配置的平台（复制 .dsh 到其他系统时识别）
-  mode: systemd       # 当前平台选中的方式（= 实现文件名）；'off' = 关闭服务端
-  config:             # 该方式的配置；字段由方式自己声明（动态表单），多为空 {}
-    why: 'dsh 任务执行中'
+# profile 配置层（cordis.patch.yml 里的 dsh-awake 条目 config）
+version: 2          # 配置文件版本：2；有老配置（0.1.x）自动转换
+platform: linux     # 锚点：上次写入配置的平台（复制 .dsh 到其他系统时识别）
+mode: systemd       # 当前平台选中的方式（= 实现文件名）；'off' = 关闭服务端
+config:             # 该方式的配置；字段由方式自己声明（动态表单），多为空 {}
+  why: 'dsh 任务执行中'
 ```
+
+> 0.2.1 及更早把配置放在 `$DSH_HOME/settings.yaml`；0.1.7 首次启动会把它一次性
+> 导入为 profile 插件配置。
 
 - **宽松 schema**：`config` 是任意对象，键由方式声明、校验在 host 侧——加实现不动 schema。
 - **常开防休眠（页面底部开关）**：一键开启后服务端**无论是否有任务运行都持续

@@ -3,11 +3,8 @@
  * 命名与约定见 DESIGN.md —— 勿改。
  */
 
-/** 插件包名（也是 Cordis 条目名 / settings 命名空间 / 设置页 slot id）。 */
+/** 插件包名（也是 Cordis 条目名 / 配置条目 id / 设置页 slot id）。 */
 export const PLUGIN_ID = 'dsh-awake'
-
-/** settings 命名空间（settings.yaml 里持久化的顶层键）。 */
-export const SETTINGS_NS = 'dsh-awake'
 
 /** 设置页 settings.section slot 的注册 id。 */
 export const SETTINGS_SLOT_ID = 'dsh-awake'

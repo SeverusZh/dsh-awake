@@ -1,4 +1,4 @@
-# dsh-awake 安装配置示例（v0.2.0 配置格式）
+# dsh-awake 安装配置示例（v0.2.2 配置格式，DSH 0.1.7）
 #
 # 用法：
 #   1. 安装插件（在 profile 目录执行 pnpm add dsh-awake@link:...，或：
@@ -7,7 +7,8 @@
 #      $DSH_HOME/profiles/<name>/cordis.patch.yml
 #      （运行中的 DSH 会热监视该文件，改动立即生效，无需重启）
 #
-# 配置格式（settings.yaml 的 dsh-awake 段，设置页「防休眠」里可热改）：
+# 配置格式（下面 insert 条目的 config，设置页「防休眠」里可热改；DSH 0.1.7 起配置
+# 就持久化在这条 profile 插件条目的 config 上，由 configEditor 写入）：
 #   version: 2          # 配置文件版本（老配置自动转换）
 #   platform: linux     # 锚点：上次写入配置的平台（复制 .dsh 到其他系统时识别）
 #   mode: systemd       # 当前平台选中的方式（= 实现文件名）；'off' = 关闭服务端
