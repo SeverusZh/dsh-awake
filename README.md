@@ -1,4 +1,4 @@
-# dsh-awake · 守夜人（防休眠插件）v0.2.3
+# dsh-awake · 守夜人（防休眠插件）v0.2.4
 
 > DeepSeek Harness 插件：在 **agent 任务执行期间阻止操作系统休眠**，任务结束
 > （含出错、中断、取消）后恢复允许休眠。跨平台：**Windows / Linux / macOS**。
@@ -29,6 +29,14 @@
 保留（否则宿主会按 Config schema 自动生成一个设置页，重新把插件塞回设置面板）。
 组件、数据面（`POST /api/dsh-awake`）、Config schema、迁移逻辑均不变。
 做法对齐 dsh-yolo-mode 0.6.x。
+
+**v0.2.4 修复「key 与包名不匹配」**：`plugins.bundle.config` 的 key 与客户端 bundle 的
+ModuleLoader id 此前都硬编码为 `dsh-awake`，导致 **scoped 安装**（如 `@scope/dsh-awake`）
+下详情页不出现配置区块（且客户端半因 bundle id 不符而加载失败）。本版改为在构建期从
+`package.json` 的 `name` 注入单一常量（`tsdown.client.config.ts` 的 `id` 与
+`__DSH_AWAKE_PKG_NAME__` 同源），key 与 bundle id 自动跟随实际包名——改包名发布
+（`prepublishOnly` 重新构建）即自动对齐，无需改源码。数据面、Config schema、迁移逻辑、
+wake lock 逻辑均不变。
 
 ---
 

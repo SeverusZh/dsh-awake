@@ -3,10 +3,16 @@
  * （plugins.bundle.config，以 npm 包名为 key）；settings.section 已退役。
  */
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { apply, inject } from '../src/client/index.js'
-import { PLUGIN_ID, SETTINGS_LOCALE_NS } from '../src/shared/constants.js'
+import { SELF_PACKAGE_NAME } from '../src/client/self.js'
+import { SETTINGS_LOCALE_NS } from '../src/shared/constants.js'
 import type { ClientContext, PluginBundleConfigOptions } from '../src/client/types.js'
+
+/** 本包 package.json 的 name —— slot key 必须与之相等的唯一事实来源。 */
+const pkgName: string = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).name
 
 interface Registration {
   readonly options: PluginBundleConfigOptions
@@ -65,7 +71,7 @@ describe('client slot 注册（plugins.bundle.config）', () => {
     expect(inject).toEqual(['slots', 'sessions', 'locale'])
   })
 
-  it('注册进 plugins.bundle.config（key = 包名），不再注册 settings.section', () => {
+  it('注册进 plugins.bundle.config（key = 本包实际包名），不再注册 settings.section', () => {
     const { ctx, injectedKeys, registrations } = fakeCtx()
     apply(ctx)
 
@@ -75,12 +81,23 @@ describe('client slot 注册（plugins.bundle.config）', () => {
     expect(registrations).toHaveLength(1)
     const reg = registrations[0]!
     expect(reg.options.name).toBe('plugins.bundle.config')
-    expect(reg.options.key).toBe(PLUGIN_ID)
-    expect(reg.options.key).toBe('dsh-awake')
     expect(reg.options.locale).toBe(SETTINGS_LOCALE_NS)
     expect(typeof reg.options.inject).toBe('function')
     // 组件 = AwakeSection（函数组件）。
     expect(typeof reg.component).toBe('function')
+  })
+
+  it('不变量：key 恒等于本包实际包名（package.json 的 name）', () => {
+    const { ctx, registrations } = fakeCtx()
+    apply(ctx)
+
+    // DSH 以 `configured = ledger.bundles.has(openPkg.name)` 决定配置区块是否渲染，
+    // 故 key 必须逐字等于当前安装态的 npm 包名（含 scope），而非硬编码。
+    expect(SELF_PACKAGE_NAME).toBe(pkgName)
+    expect(registrations[0]!.options.key).toBe(pkgName)
+    // 本仓库（未改名发布）下即 `dsh-awake`；scoped 安装时会随 name 自动变为
+    // `@scope/dsh-awake`——此处不对字面量设期望，只锁定「与 name 一致」。
+    expect(registrations[0]!.options.key).toBe(SELF_PACKAGE_NAME)
   })
 
   it('注入面提供 { api, manager, t }（组件 props = 宿主 { view } + 本注入面）', () => {
