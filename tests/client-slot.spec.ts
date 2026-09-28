@@ -92,11 +92,13 @@ describe('client slot 注册（plugins.bundle.config）', () => {
     apply(ctx)
 
     // DSH 以 `configured = ledger.bundles.has(openPkg.name)` 决定配置区块是否渲染，
-    // 故 key 必须逐字等于当前安装态的 npm 包名（含 scope），而非硬编码。
+    // 故 key 必须逐字等于包名，而非硬编码。
     expect(SELF_PACKAGE_NAME).toBe(pkgName)
     expect(registrations[0]!.options.key).toBe(pkgName)
-    // 本仓库（未改名发布）下即 `dsh-awake`；scoped 安装时会随 name 自动变为
-    // `@scope/dsh-awake`——此处不对字面量设期望，只锁定「与 name 一致」。
+    // 这里只锁定「key === package.json.name」。注意这只是多个名字中的一个：
+    // 配置区块要真正出现在某次安装里，还要求 cordis.patch.yml 的 insert name 与
+    // 安装名也等于同一个值（alias 安装会让 Loader 行名 ≠ manifest name，客户端半被
+    // dsh-client-modules 静默跳过）——见 README「发布 / 安装约束」。
     expect(registrations[0]!.options.key).toBe(SELF_PACKAGE_NAME)
   })
 

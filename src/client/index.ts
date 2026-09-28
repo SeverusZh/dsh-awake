@@ -75,11 +75,13 @@ export function apply(ctx: ClientContext): void {
 
   // —— 插件列表 → 插件详情 → dsh-awake（plugins.bundle.config）——
   // 配置渲染在本插件于插件管理页的详情页（「插件列表 → dsh-awake」），位于包描述
-  // 与组件行之间。该 keyed slot 以 **npm 包名** 为 key，且页面只在注册了与包名相同
-  // 的 key 时才渲染配置区块（dsh-client-ui-plugin-manager: `configured = ledger.bundles
-  // .has(openPkg.name)`）。key 取构建期注入的 SELF_PACKAGE_NAME（= package.json 的
-  // name），因此 scoped 安装（如 @scope/dsh-awake）也能匹配——硬编码 `dsh-awake`
-  // 会让 scoped 包永远匹配不上（详见 self.ts）。bundle 页只请求 view:'page' 且不传
+  // 与组件行之间。该 keyed slot 以包名为 key，且页面只在注册了与**安装名**相同的
+  // key 时才渲染配置区块（dsh-client-ui-plugin-manager: `configured = ledger.bundles
+  // .has(openPkg.name)`；openPkg.name 是 profile 依赖 / dsh.profile.bundles 的条目名）。
+  // key 取构建期注入的 SELF_PACKAGE_NAME（= package.json 的 name），因此只有当
+  // 「package.json.name == cordis.patch.yml 的 insert name == 安装名」时才命中；
+  // 硬编码或 alias 安装都会失配（alias 下 Loader 行名 ≠ manifest name，客户端半被
+  // dsh-client-modules 静默跳过）——详见 self.ts。bundle 页只请求 view:'page' 且不传
   // 宿主 form——草稿/校验/保存由本插件自持，走 /api/dsh-awake 数据面。
   // settings.section 已退役，DSH 设置面板不再出现本插件。
   const api = makeRpc()

@@ -31,12 +31,20 @@
 做法对齐 dsh-yolo-mode 0.6.x。
 
 **v0.2.4 修复「key 与包名不匹配」**：`plugins.bundle.config` 的 key 与客户端 bundle 的
-ModuleLoader id 此前都硬编码为 `dsh-awake`，导致 **scoped 安装**（如 `@scope/dsh-awake`）
-下详情页不出现配置区块（且客户端半因 bundle id 不符而加载失败）。本版改为在构建期从
-`package.json` 的 `name` 注入单一常量（`tsdown.client.config.ts` 的 `id` 与
-`__DSH_AWAKE_PKG_NAME__` 同源），key 与 bundle id 自动跟随实际包名——改包名发布
-（`prepublishOnly` 重新构建）即自动对齐，无需改源码。数据面、Config schema、迁移逻辑、
-wake lock 逻辑均不变。
+ModuleLoader id 此前都硬编码为 `dsh-awake`，包名不是 `dsh-awake`（如 scoped 发布
+`@scope/dsh-awake`）时与实际包名不符，详情页不出现配置区块（且客户端半因 bundle id
+不符而加载失败）。本版改为在构建期从 `package.json` 的 `name` 注入单一常量
+（`tsdown.client.config.ts` 的 `id` 与 `__DSH_AWAKE_PKG_NAME__` 同源），key 与 bundle id
+自动跟随实际包名。数据面、Config schema、迁移逻辑、wake lock 逻辑均不变。
+
+> **发布 / 安装约束（v0.2.4 起必须满足）**：构建期注入只覆盖 bundle id 与 slot key，
+> **不覆盖 `cordis.patch.yml`**。DSH 另有两处硬约束：Loader 行名（`cordis.patch.yml`
+> 里 insert 的 `name`）必须逐字等于 `package.json.name`，否则 `dsh-client-modules` 会
+> **静默跳过整个浏览器半**（不报错）；插件管理页判定配置区块用的又是**安装名**
+> （profile 依赖 / `dsh.profile.bundles` 的条目名）。因此下面四个名字必须一致：
+> `package.json.name` == `cordis.patch.yml` insert 的 `name` == 安装名 == bundle id/slot key。
+> 换名 / 加 scope 发布时，除 `prepublishOnly` 重新构建外，还需同步 `cordis.patch.yml`
+> 的 `name`；并且**不要用 npm alias 安装**（如 `"dsh-awake": "npm:@scope/dsh-awake@x"`）。
 
 ---
 
