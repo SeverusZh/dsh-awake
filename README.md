@@ -1,4 +1,4 @@
-# dsh-awake · 守夜人（防休眠插件）v0.2.4
+# dsh-awake · 守夜人（防休眠插件）v0.2.5
 
 > DeepSeek Harness 插件：在 **agent 任务执行期间阻止操作系统休眠**，任务结束
 > （含出错、中断、取消）后恢复允许休眠。跨平台：**Windows / Linux / macOS**。
@@ -50,7 +50,7 @@ ModuleLoader id 此前都硬编码为 `dsh-awake`，包名不是 `dsh-awake`（�
 
 ## 兼容性
 
-- **支持 DSH `0.1.7-rc.2`**（设置子系统迁移至 Config schema + `SettingsForms`/`configEditor`）。
+- **支持 DSH `0.1.7-rc.2` / `0.2.0-rc.1`**（设置子系统迁移至 Config schema + `SettingsForms`/`configEditor`）。
 - **不兼容 DSH 0.1.5-rc 及更早**：那些版本用的是旧的 `settings.register` / `settings.get`
   API，设置子系统已被 0.1.7 整体替换。旧宿主请继续用 **dsh-awake `0.2.1`**。
 - 从 0.2.x 升级到 0.2.2：DSH 首次启动会把旧的 `settings.yaml` 里的 `dsh-awake`

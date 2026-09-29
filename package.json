@@ -1,6 +1,6 @@
 {
   "name": "dsh-awake",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "DeepSeek Harness 防休眠插件（守夜人）：agent 任务执行期间阻止操作系统休眠，任务结束后恢复；方式子系统（systemd-inhibit / GNOME gsettings / caffeinate / pmset / PowerShell / powercfg）+ 浏览器 Wake Lock + 一键更新",
   "keywords": [
     "deepseek-harness",
@@ -54,7 +54,8 @@
     },
     "compatibility": {
       "dshReleases": {
-        "0.1.7-rc.2": "compatible"
+        "0.1.7-rc.2": "compatible",
+        "0.2.0-rc.1": "compatible"
       },
       "node": ">=20"
     }
