@@ -3,7 +3,7 @@
  * 命名与约定见 DESIGN.md —— 勿改。
  */
 
-/** 插件包名（也是 Cordis 条目名 / 配置条目 id / 设置页 slot id）。 */
+/** 插件 id（Cordis 条目 id / 配置条目 id / 设置页 slot id）；npm 包名为 @seve2us/dsh-awake。 */
 export const PLUGIN_ID = 'dsh-awake'
 
 /** 设置页 settings.section slot 的注册 id。 */
@@ -34,4 +34,4 @@ export const LOCALSTORAGE_KEY = 'dsh-awake.webWakeLock'
 export const CONFIG_VERSION = 2
 
 /** npm registry 最新版探测地址（更新卡片用，带 CORS *）。 */
-export const NPM_REGISTRY_URL = 'https://registry.npmjs.org/dsh-awake/latest'
+export const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@seve2us%2Fdsh-awake/latest'

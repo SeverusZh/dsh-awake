@@ -1,5 +1,5 @@
 /**
- * 一键更新：`dsh plugin --profile <p> update dsh-awake --latest -w`（超时保护）。
+ * 一键更新：`dsh plugin --profile <p> update @seve2us/dsh-awake --latest -w`（超时保护）。
  * 移植自 dsh-pocket lib/index.js 的 performUpdate。
  */
 
@@ -25,7 +25,7 @@ export function createUpdateHelper(defaultProfile = 'web', { timeoutMs = 180_000
     new Promise((resolve) => {
       const child = spawn(
         'dsh',
-        ['plugin', '--profile', profile ?? defaultProfile, 'update', 'dsh-awake', '--latest', '-w'],
+        ['plugin', '--profile', profile ?? defaultProfile, 'update', '@seve2us/dsh-awake', '--latest', '-w'],
         { stdio: ['ignore', 'pipe', 'pipe'] },
       )
       let out = ''

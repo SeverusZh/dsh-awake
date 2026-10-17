@@ -1,10 +1,10 @@
-# dsh-awake · 守夜人（防休眠插件）v0.2.3
+# @seve2us/dsh-awake · 守夜人（防休眠插件）v0.2.4（fork）
 
 > DeepSeek Harness 插件：在 **agent 任务执行期间阻止操作系统休眠**，任务结束
 > （含出错、中断、取消）后恢复允许休眠。跨平台：**Windows / Linux / macOS**。
 
 电脑在 dsh 执行任务时自动休眠，会导致任务中断、重启后服务报错、会话数据损坏。
-`dsh-awake` 像守夜人一样盯住任务：任务开始 → 点亮「防休眠」，任务结束 → 熄灭。
+`@seve2us/dsh-awake` 像守夜人一样盯住任务：任务开始 → 点亮「防休眠」，任务结束 → 熄灭。
 
 **v0.2.0 是破坏性重构**：方式子系统（平台优先、实现级粒度）、动态配置 schema、
 单通道数据面（设置页不再碰官方 settings wire）、浏览器 Wake Lock 独立为
@@ -28,6 +28,11 @@
 `ctx.sessions`；`dsh.client.inject` 中的 `@deepseek-ai/dsh-client-ui-slots` /
 `@deepseek-ai/dsh-cordis-client-runner` 也仍可用。无需改动运行时代码。
 
+**v0.2.4 改用新包名**：上游 `dsh-awake`（npm maintainer `htfc786`）无法由本仓库
+发布，因此 fork 从 **0.2.4** 起改用 **`@seve2us/dsh-awake`**。Cordis 条目 id、
+配置条目 id、设置页 slot id、RPC 路径与 localStorage 键仍保持 `dsh-awake`，
+已有 profile 配置可以继续复用；只有 npm 包名和客户端 bundle id 改为新包名。
+
 ---
 
 ## 兼容性
@@ -38,7 +43,8 @@
   环境因 systemd-inhibit 未登记 inhibitor 而失败，与 0.2.1 无关。0.2.1-rc.2 上通过
   兼容门禁。
 - **不兼容 DSH 0.1.5-rc 及更早**：那些版本用的是旧的 `settings.register` / `settings.get`
-  API，设置子系统已被 0.1.7 整体替换。旧宿主请继续用 **dsh-awake `0.2.1`**。
+  API，设置子系统已被 0.1.7 整体替换。旧宿主请继续用上游 **`dsh-awake` `0.2.1`**；
+  本 fork 的 **`@seve2us/dsh-awake`** 从 0.2.4 起只支持 0.1.7+。
 - 从 0.2.x 升级到 0.2.2：DSH 首次启动会把旧的 `settings.yaml` 里的 `dsh-awake`
   段一次性导入为插件配置（`SettingsForms.importLegacyDocument`），设置基本无感
   迁移；更早的 0.1.x 旧形状（`enabled` / `shellWakeLock` / …）仍由宿主侧自动识别
@@ -46,18 +52,36 @@
 
 ---
 
+## 从上游 `dsh-awake` 迁移
+
+本仓库的 npm 包名是 **`@seve2us/dsh-awake`**（上游包 `dsh-awake` 仍由 `htfc786`
+维护，本仓库无法向该包名发布新版本）。
+
+```sh
+# 卸载上游包，安装 fork
+dsh plugin --profile web remove dsh-awake
+dsh plugin --profile web add @seve2us/dsh-awake
+```
+
+Cordis 条目 id 仍为 `dsh-awake`，所以 profile 的 `cordis.patch.yml` 里已有条目
+可以保留，只需把 `name:` 从 `dsh-awake` 改成 `@seve2us/dsh-awake`；条目
+`config:` 不需要改。若 `remove` 同时删除了条目配置，请先备份
+`$DSH_HOME/profiles/<name>/cordis.patch.yml`，重新添加后把原 `config:` 合并回去。
+
+---
+
 ## 安装
 
 ```sh
 # 1. 安装到目标 profile（例如 web）
-dsh plugin --profile web add dsh-awake
+dsh plugin --profile web add @seve2us/dsh-awake
 
 # 2. 把仓库根目录的 cordis.patch.yml 里的 `- insert:` 段追加到
 #    $DSH_HOME/profiles/web/cordis.patch.yml
 ```
 
 > 运行中的 DSH 会**热监视** profile 的 `cordis.patch.yml`：追加配置后立即生效，
-> 无需重启。本地开发可用 `pnpm add dsh-awake@link:...` 直接链接源码目录。
+> 无需重启。本地开发可用 `pnpm add @seve2us/dsh-awake@link:...` 直接链接源码目录。
 
 ---
 

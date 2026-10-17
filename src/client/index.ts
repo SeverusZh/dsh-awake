@@ -18,7 +18,7 @@ import { PLUGIN_ID, SECTION_ORDER, SETTINGS_LOCALE_NS, SETTINGS_SLOT_ID } from '
 import type { ClientContext } from './types.js'
 import { isWebWakeLockEnabled, WakeLockManager } from './wake-lock.js'
 
-/** 插件包名（= ModuleLoader 条目 id）。 */
+/** 插件 id（Cordis 插件名）；ModuleLoader 条目 id 是 npm 包名 @seve2us/dsh-awake。 */
 export const name = PLUGIN_ID
 
 /**
