@@ -1,4 +1,4 @@
-# dsh-awake · 守夜人（防休眠插件）v0.2.2
+# dsh-awake · 守夜人（防休眠插件）v0.2.3
 
 > DeepSeek Harness 插件：在 **agent 任务执行期间阻止操作系统休眠**，任务结束
 > （含出错、中断、取消）后恢复允许休眠。跨平台：**Windows / Linux / macOS**。
@@ -22,11 +22,21 @@
 `settings.configure({ auto: false })`（awake 自带设置页）。同时移除 `dsh.client.inject`
 里 0.1.7 已删除的 `@deepseek-ai/dsh-client-runtime`（换成 `@deepseek-ai/dsh-cordis-client-runner`）。
 
+**v0.2.3 适配 DSH 0.2.1**：新增 `engines.dsh: ">=0.1.7-rc.2"`（0.2.1 起兼容门禁
+优先读取该字段）与 `0.2.1-rc.1` / `0.2.1-rc.2` 兼容矩阵。0.2.1 未移除本插件使用的
+`Config` schema、`configEditor`、`connection.fetch.register`、`settings.section` 或
+`ctx.sessions`；`dsh.client.inject` 中的 `@deepseek-ai/dsh-client-ui-slots` /
+`@deepseek-ai/dsh-cordis-client-runner` 也仍可用。无需改动运行时代码。
+
 ---
 
 ## 兼容性
 
-- **支持 DSH `0.1.7-rc.2`**（设置子系统迁移至 Config schema + `SettingsForms`/`configEditor`）。
+- **支持 DSH `0.1.7-rc.2` / `0.2.1-rc.1` / `0.2.1-rc.2`**（设置子系统迁移至
+  Config schema + `SettingsForms`/`configEditor`）。0.2.1-rc.1 上通过 typecheck、
+  构建与 120/123 项测试；其余 3 项是 `systemd-inhibit` 真实集成用例，在当前 WSL
+  环境因 systemd-inhibit 未登记 inhibitor 而失败，与 0.2.1 无关。0.2.1-rc.2 上通过
+  兼容门禁。
 - **不兼容 DSH 0.1.5-rc 及更早**：那些版本用的是旧的 `settings.register` / `settings.get`
   API，设置子系统已被 0.1.7 整体替换。旧宿主请继续用 **dsh-awake `0.2.1`**。
 - 从 0.2.x 升级到 0.2.2：DSH 首次启动会把旧的 `settings.yaml` 里的 `dsh-awake`
