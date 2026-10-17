@@ -10,7 +10,7 @@
  */
 import { defineConfig } from 'tsdown'
 
-const id = 'dsh-awake'
+const id = '@seve2us/dsh-awake'
 /** 由页面模块表提供的 external（bundle 内保持 require(...) 调用）。 */
 const externals = ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime']
 

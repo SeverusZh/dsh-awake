@@ -32,7 +32,7 @@ export const zh = {
   restarting: '重启中…',
   updatedAutoRestart: '已更新 v{latest}，正在自动重启…',
   updateFailed: '更新失败：{output}',
-  updateManualHint: '手动更新：dsh plugin --profile web update dsh-awake --latest -w',
+  updateManualHint: '手动更新：dsh plugin --profile web update @seve2us/dsh-awake --latest -w',
   updateDesc: '当前 v{current} → 最新 v{latest}',
   elapsed: '已等待 {s} 秒',
   // —— 浏览器开关（2.3）——
@@ -89,7 +89,7 @@ export const en: Record<LocaleKey, string> = {
   restarting: 'Restarting…',
   updatedAutoRestart: 'Updated to v{latest} — restarting automatically…',
   updateFailed: 'Update failed: {output}',
-  updateManualHint: 'Manual update: dsh plugin --profile web update dsh-awake --latest -w',
+  updateManualHint: 'Manual update: dsh plugin --profile web update @seve2us/dsh-awake --latest -w',
   updateDesc: 'current v{current} → latest v{latest}',
   elapsed: '{s}s elapsed',
   browserWakeLock: 'Keep this browser awake while tasks run',

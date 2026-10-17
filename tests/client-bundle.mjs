@@ -33,7 +33,7 @@ globalThis.window = {
 }
 const code = new Function('window', bundleSrc)
 code(globalThis.window)
-check('bundle 已注册到 __ModuleLoader__', loaded !== null && loaded.id === 'dsh-awake')
+check('bundle 已注册到 __ModuleLoader__', loaded !== null && loaded.id === '@seve2us/dsh-awake')
 check('bundle 带 factory', typeof loaded?.factory === 'function')
 
 const exportsObj = loaded.factory(require)

@@ -21,7 +21,7 @@ export type {
   RestartResult, RpcError, RpcResult, SelectRequest, UpdateResult,
 } from './types.js'
 
-/** 插件包名（= Cordis 条目名）。 */
+/** 插件 id（Cordis 插件名）；npm 包名为 @seve2us/dsh-awake，配置条目 id 仍为 dsh-awake。 */
 export const name = PLUGIN_ID
 
 /**
