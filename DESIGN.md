@@ -310,7 +310,7 @@ export const inject = ['slots', 'sessions', 'locale']
 
 ### 4.3 更新卡片
 
-- 参考`dsh-pocket`样式，位置`/home/htfc786/.dsh/profiles/web/node_modules/dsh-pocket/`
+- 参考 dsh-pocket 的更新卡片样式。
 - host 暴露 `{ current, loaded }`（current = 磁盘包版本，loaded = 运行中版本）。
 - client `fetch('https://registry.npmjs.org/dsh-awake/latest', { cache: 'no-store' })`
   + `compareVersions`（移植 api.js，MIT）+ 周期重查 5 分钟 + 网络失败静默。
