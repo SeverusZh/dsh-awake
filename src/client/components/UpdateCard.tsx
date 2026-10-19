@@ -129,7 +129,7 @@ export function UpdateCard({ data, api, t }: UpdateCardProps): React.ReactElemen
       : t('updateAvailable').replace('{latest}', info.latest).replace('{current}', info.current)
 
   return (
-    <div className="aw-update">
+    <div className="aw-update" data-tone={info.result === null ? 'warn' : undefined}>
       <div className="aw-update-head">
         <div className="aw-update-title">{title}</div>
         {info.result !== 'ok' ? (

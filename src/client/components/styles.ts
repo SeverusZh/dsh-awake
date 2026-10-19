@@ -7,7 +7,6 @@
  * 都自动成立，源码中不出现任何硬编码色值。卸载时 client/index.ts 的
  * effect 会按 `data-plugin` 清理该标签。
  */
-import type { CSSProperties } from 'react'
 import { PLUGIN_ID } from '../../shared/constants.js'
 
 /** 本插件样式标签的稳定 id（卸载清理按 data-plugin 属性匹配）。 */
@@ -40,7 +39,7 @@ export const css = `
 .aw-body{display:flex;flex-direction:column;gap:10px;min-width:0;}
 .aw-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .aw-btn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:30px;padding:0 14px;border:1px solid transparent;border-radius:var(--dsw-radius-sm);font:var(--dsw-font-xs-13);font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background-color .15s ease,border-color .15s ease,color .15s ease,opacity .15s ease;}
-.aw-btn:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px;}
+.aw-btn:focus-visible{outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));outline-offset:2px;}
 .aw-btn:disabled{opacity:.5;cursor:not-allowed;}
 .aw-btn-primary{background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground);}
 .aw-btn-primary:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover);}
@@ -71,15 +70,17 @@ export const css = `
 .aw-notice-detail-error{color:var(--dsw-alias-state-error-primary);}
 .aw-update{display:flex;flex-direction:column;gap:8px;margin-top:12px;padding:12px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-module-platform);}
 .aw-update-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
-.aw-update-title{font:var(--dsw-font-xs-13);font-weight:600;line-height:20px;color:var(--dsw-alias-label-primary);}
-.aw-update-desc{font:var(--dsw-font-xxs-12);line-height:18px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;}
+.aw-update-title{display:inline-flex;align-items:center;gap:6px;font:var(--dsw-font-xs-13);font-weight:600;line-height:20px;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;}
+.aw-update[data-tone=warn]{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 40%,transparent);}
+.aw-update[data-tone=warn] .aw-update-title::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-warn-primary);}
+.aw-update-desc{font:var(--dsw-font-xxs-12);line-height:18px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
 .aw-switch{position:relative;display:inline-flex;align-items:center;flex:none;cursor:pointer;}
 .aw-switch-input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;}
 .aw-switch-track{box-sizing:border-box;display:flex;align-items:center;width:36px;height:20px;padding:2px;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-3);transition:background-color .15s ease,border-color .15s ease;}
 .aw-switch-thumb{width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-switch-thumb);box-shadow:var(--dsw-shadow-lv1);transition:transform .15s ease;}
 .aw-switch-input:checked + .aw-switch-track{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);}
 .aw-switch-input:checked + .aw-switch-track .aw-switch-thumb{transform:translateX(16px);}
-.aw-switch-input:focus-visible + .aw-switch-track{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px;}
+.aw-switch-input:focus-visible + .aw-switch-track{outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));outline-offset:2px;}
 .aw-switch-input:disabled + .aw-switch-track{opacity:.5;}
 .aw-switch-input:disabled{cursor:not-allowed;}
 `
@@ -93,9 +94,4 @@ export function ensureStyles(): void {
   tag.dataset.pluginCss = STYLE_TAG_ID
   tag.textContent = css
   document.head.appendChild(tag)
-}
-
-/** 需要与主题联动、保持 inline 下发的动态样式（目前仅禁用态兜底）。 */
-export const styles: Record<string, CSSProperties> = {
-  disabled: { opacity: 0.5, cursor: 'not-allowed' },
 }
