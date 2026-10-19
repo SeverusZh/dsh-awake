@@ -7,13 +7,15 @@
  * - 状态机：无新版（不渲染）/ 有新版（提示 + 一键更新）/ 更新中 / 已更新未重启
  *   （「重启生效」按钮）/ 失败（显示输出）；
  * - desktop === true：不渲染（更新由 DSH Desktop 管理）。
+ *
+ * 视觉：软底卡片（模块平台底 + 1px 描边 + 12 圆角），标题与版本号用字重/字号
+ * 分层，主操作使用官方主按钮令牌。
  */
 import { useEffect, useState } from 'react'
 import { NPM_REGISTRY_URL } from '../../shared/constants.js'
 import type { AwakeStatus } from '../../types.js'
 import type { AwakeApi } from '../api.js'
 import { compareVersions } from '../api.js'
-import { styles } from './styles.js'
 
 export interface UpdateCardProps {
   readonly data: AwakeStatus
@@ -127,24 +129,24 @@ export function UpdateCard({ data, api, t }: UpdateCardProps): React.ReactElemen
       : t('updateAvailable').replace('{latest}', info.latest).replace('{current}', info.current)
 
   return (
-    <div style={{ ...styles.block, borderLeft: '4px solid var(--dsw-alias-state-warn-primary,#b45309)', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-2,#f3f4f6)', padding: '10px 12px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ fontWeight: 600, fontSize: 13 }}>{title}</div>
+    <div className="aw-update">
+      <div className="aw-update-head">
+        <div className="aw-update-title">{title}</div>
         {info.result !== 'ok' ? (
-          <button type="button" style={{ ...styles.primary, height: 28, padding: '0 14px', ...(info.updating ? styles.disabled : {}) }} disabled={info.updating} onClick={() => void runUpdate()}>
+          <button type="button" className="aw-btn aw-btn-primary aw-btn-sm" disabled={info.updating} onClick={() => void runUpdate()}>
             {info.updating ? t('updating') : `${t('updateNow')} v${info.latest}`}
           </button>
         ) : info.autoRestart ? (
-          <button type="button" style={{ ...styles.btn, height: 28, ...styles.disabled }} disabled>
+          <button type="button" className="aw-btn aw-btn-secondary aw-btn-sm" disabled>
             {t('updatedAutoRestart')}
           </button>
         ) : (
-          <button type="button" style={{ ...styles.primary, height: 28, padding: '0 14px', ...(info.restarting ? styles.disabled : {}) }} disabled={info.restarting} onClick={() => void restartNow()}>
+          <button type="button" className="aw-btn aw-btn-primary aw-btn-sm" disabled={info.restarting} onClick={() => void restartNow()}>
             {info.restarting ? t('restarting') : `🔄 ${t('restartNow')}`}
           </button>
         )}
       </div>
-      <div style={styles.muted}>
+      <div className="aw-update-desc">
         {info.updating
           ? `${t('updating')}（${t('elapsed').replace('{s}', String(elapsed(info.startedAt)))}）`
           : info.restarting

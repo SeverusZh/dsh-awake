@@ -5,11 +5,13 @@
  * - 选中方式的 description 显示在说明区；
  * - 动态表单由方式声明的 fields 驱动（ConfigField 描述符，纯数据不写 TSX）；
  * - 「应用」→ awake.select（host 侧 normalize 后写配置并热对账）。
+ *
+ * 视觉：与状态行 / 更新卡 / 开关行共用 aw-* 设计体系；表单行左 label 右控件，
+ * 窄宽堆叠；反馈行独立于按钮行，不挤压操作。
  */
 import { useState } from 'react'
 import type { AwakeStatus, ConfigField } from '../../types.js'
 import type { AwakeApi } from '../api.js'
-import { styles } from './styles.js'
 import { ToggleSwitch } from './ToggleSwitch.js'
 
 export interface ModeSelectProps {
@@ -93,12 +95,12 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
   }
 
   return (
-    <div style={styles.block}>
-      <div style={{ fontWeight: 600, fontSize: 13 }}>{t('modeLabel')}</div>
-      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="aw-block">
+      <p className="aw-heading">{t('modeLabel')}</p>
+      <div className="aw-body">
         <select
+          className="aw-select"
           value={currentMode}
-          style={selectStyle}
           onChange={(e) => changeMode(e.target.value)}
         >
           <option value="off">{t('offOption')}</option>
@@ -112,8 +114,8 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
         </select>
 
         {selectedMode !== undefined && (
-          <div style={{ ...styles.muted, background: 'var(--dsw-alias-bg-layer-2,#f3f4f6)', borderRadius: 8, padding: '8px 10px' }}>
-            <span style={{ fontWeight: 600 }}>{t('descriptionLabel')}：</span>
+          <div className="aw-info">
+            <span className="aw-info-label">{t('descriptionLabel')}：</span>
             {selectedMode.description}
           </div>
         )}
@@ -122,45 +124,33 @@ export function ModeSelect({ data, api, onStatus, t }: ModeSelectProps): React.R
           <ConfigFieldForm fields={fields} value={cfg} onChange={setField} disabled={saving} t={t} />
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="aw-actions">
           {/* 按钮行：只放按钮，不被反馈文字挤压 */}
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <button
-              type="button"
-              style={{ ...styles.primary, height: 30, padding: '0 14px', ...(draft === null || saving ? styles.disabled : {}) }}
-              disabled={draft === null || saving}
-              onClick={() => void apply()}
-            >
-              {saving ? t('saving') : t('apply')}
-            </button>
-          </div>
-          {/* 反馈行：独立一行，可自由换行，不挤压按钮 */}
-          {(saved || testResult !== null || error !== null) && (
-            <div style={{ fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word' }}>
-              {saved && testResult === null && <span style={{ color: 'var(--dsw-alias-state-success-primary,#16a34a)' }}>✓ {t('saved')}</span>}
-              {testResult !== null &&
-                (testResult.ok ? (
-                  <span style={{ color: 'var(--dsw-alias-state-success-primary,#16a34a)' }}>✓ {t('savedTestOk')}</span>
-                ) : (
-                  <span style={{ color: 'var(--dsw-alias-state-warn-primary,#b45309)' }}>⚠ {t('savedTestFail').replace('{reason}', testResult.reason ?? '?')}</span>
-                ))}
-              {error !== null && <span style={{ color: 'var(--dsw-alias-state-error-primary,#dc2626)' }}>❌ {t('saveFailed').replace('{message}', error)}</span>}
-            </div>
-          )}
+          <button
+            type="button"
+            className="aw-btn aw-btn-primary"
+            disabled={draft === null || saving}
+            onClick={() => void apply()}
+          >
+            {saving ? t('saving') : t('apply')}
+          </button>
         </div>
+        {/* 反馈行：独立一行，可自由换行，不挤压按钮 */}
+        {(saved || testResult !== null || error !== null) && (
+          <div className="aw-feedback">
+            {saved && testResult === null && <span className="aw-success">✓ {t('saved')}</span>}
+            {testResult !== null &&
+              (testResult.ok ? (
+                <span className="aw-success">✓ {t('savedTestOk')}</span>
+              ) : (
+                <span className="aw-warn">⚠ {t('savedTestFail').replace('{reason}', testResult.reason ?? '?')}</span>
+              ))}
+            {error !== null && <span className="aw-error">❌ {t('saveFailed').replace('{message}', error)}</span>}
+          </div>
+        )}
       </div>
     </div>
   )
-}
-
-const selectStyle: React.CSSProperties = {
-  font: 'inherit',
-  color: 'inherit',
-  background: 'var(--dsw-alias-bg-layer-1,#fff)',
-  border: '1px solid var(--dsw-alias-border-l2,#d1d5db)',
-  borderRadius: 8,
-  padding: '6px 10px',
-  fontSize: 13,
 }
 
 /**
@@ -178,11 +168,11 @@ export interface ConfigFieldFormProps {
 
 export function ConfigFieldForm({ fields, value, onChange, disabled, t }: ConfigFieldFormProps): React.ReactElement {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="aw-body">
       {fields.map((field, index) => {
         if (field.type === 'text') {
           return (
-            <p key={index} style={{ margin: 0, ...styles.muted }}>
+            <p key={index} className="aw-hint">
               {field.content}
             </p>
           )
@@ -193,7 +183,7 @@ export function ConfigFieldForm({ fields, value, onChange, disabled, t }: Config
             <FieldRow key={field.key} title={field.title} hint={field.hint} t={t}>
               <input
                 type="text"
-                style={inputStyle}
+                className="aw-input"
                 disabled={disabled}
                 placeholder={field.placeholder}
                 value={v}
@@ -208,7 +198,7 @@ export function ConfigFieldForm({ fields, value, onChange, disabled, t }: Config
             <FieldRow key={field.key} title={field.title} hint={field.hint} t={t}>
               <textarea
                 rows={field.rows ?? 3}
-                style={inputStyle}
+                className="aw-textarea"
                 disabled={disabled}
                 value={v}
                 onChange={(e) => onChange(field.key, e.target.value)}
@@ -228,7 +218,7 @@ export function ConfigFieldForm({ fields, value, onChange, disabled, t }: Config
           const v = stringValue(value[field.key], field.default)
           return (
             <FieldRow key={field.key} title={field.title} hint={field.hint} t={t}>
-              <select style={selectStyle} disabled={disabled} value={v} onChange={(e) => onChange(field.key, e.target.value)}>
+              <select className="aw-select" disabled={disabled} value={v} onChange={(e) => onChange(field.key, e.target.value)}>
                 {field.options.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -245,7 +235,7 @@ export function ConfigFieldForm({ fields, value, onChange, disabled, t }: Config
           <FieldRow key={field.key} title={field.title} hint={field.hint} t={t}>
             <input
               type="number"
-              style={inputStyle}
+              className="aw-input"
               disabled={disabled}
               min={field.min}
               max={field.max}
@@ -272,26 +262,14 @@ function FieldRow({
 }): React.ReactElement {
   void t
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13 }}>{title}</div>
-        {hint !== undefined && <div style={styles.muted}>{hint}</div>}
+    <div className="aw-field">
+      <div className="aw-field-text">
+        <div className="aw-field-title">{title}</div>
+        {hint !== undefined && <div className="aw-hint">{hint}</div>}
       </div>
-      <div style={{ flexShrink: 0, maxWidth: 220, display: 'flex', justifyContent: 'flex-end' }}>{children}</div>
+      <div className="aw-field-control">{children}</div>
     </div>
   )
-}
-
-const inputStyle: React.CSSProperties = {
-  font: 'inherit',
-  color: 'inherit',
-  boxSizing: 'border-box',
-  width: '100%',
-  background: 'var(--dsw-alias-bg-layer-1,#fff)',
-  border: '1px solid var(--dsw-alias-border-l2,#d1d5db)',
-  borderRadius: 8,
-  padding: '6px 10px',
-  fontSize: 13,
 }
 
 /** 取值：优先当前值，缺失回字段默认。 */

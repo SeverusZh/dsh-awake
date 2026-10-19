@@ -13,6 +13,7 @@
  */
 import { makeRpc } from './api.js'
 import { AwakeSection } from './components/AwakeSection.js'
+import { ensureStyles } from './components/styles.js'
 import { en, zh } from './locales.js'
 import { PLUGIN_ID, SECTION_ORDER, SETTINGS_LOCALE_NS, SETTINGS_SLOT_ID } from '../shared/constants.js'
 import type { ClientContext } from './types.js'
@@ -36,6 +37,9 @@ export function apply(ctx: ClientContext): void {
 
   // 样式标签以 data-plugin 标记（loader 卸载时会清理插件拥有的标签）；这里再
   // 兜底一个 effect：卸载时移除本插件名下的所有 <style>。
+  // 设置页样式表由 ensureStyles() 注入（幂等）：hover / focus-visible / 开关
+  // 等交互态必须走真实 CSS 规则，颜色全部取自官方 --dsw-* 令牌。
+  ensureStyles()
   const removeOwnedStyles = (): void => {
     for (const tag of document.querySelectorAll(`style[data-plugin="${PLUGIN_ID}"]`)) {
       tag.remove()

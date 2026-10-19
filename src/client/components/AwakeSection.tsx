@@ -2,6 +2,9 @@
  * 设置页主组件：2.1 状态行 + 2.2 提示区 + 2.2 更新卡片 + 2.3 浏览器开关 + 2.4 方式选择
  * + 常开防休眠开关（页面底部）。
  * 打开时拉取 + 每 5s 轮询（dsh-pocket 同款）；刷新按钮 = awake.refresh。
+ *
+ * 视觉：官方设置页的行/分区体系——顶部状态行，下面按 hairline 分隔的分区块；
+ * 提示条与更新卡是软底卡片；全部样式 token 化，亮暗主题一致。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { AwakeStatus } from '../../types.js'
@@ -13,7 +16,6 @@ import { BrowserWakeToggle } from './BrowserWakeToggle.js'
 import { ModeSelect } from './ModeSelect.js'
 import { NoticeArea } from './NoticeArea.js'
 import { StatusRow } from './StatusRow.js'
-import { styles } from './styles.js'
 import { UpdateCard } from './UpdateCard.js'
 
 export interface AwakeSectionProps {
@@ -69,18 +71,18 @@ export function AwakeSection({ api, manager, t }: AwakeSectionProps): React.Reac
   const loadError = load.status === 'error' ? load.message : null
 
   return (
-    <div style={styles.card}>
+    <div className="aw-root">
       <StatusRow data={data} loadError={loadError} refreshing={refreshing} onRefresh={onRefresh} t={t} />
 
-      {load.status === 'loading' && <div style={{ ...styles.muted, marginTop: 12 }}>{t('loading')}</div>}
-      {load.status === 'error' && <div style={{ ...styles.error, marginTop: 12 }}>{t('loadError')}{loadError}</div>}
+      {load.status === 'loading' && <p className="aw-msg">{t('loading')}</p>}
+      {load.status === 'error' && <p className="aw-msg aw-msg-error">{t('loadError')}{loadError}</p>}
 
       {data !== null && (
         <>
-          {/* 提示区 / 更新卡片自带色块边框，不重复画分割线；仅在出现时渲染 */}
+          {/* 提示区 / 更新卡片自带软底与描边，不重复画分割线；仅在出现时渲染 */}
           <NoticeArea data={data} t={t} />
           <UpdateCard data={data} api={api} t={t} />
-          <div style={styles.block}>
+          <div className="aw-block">
             <BrowserWakeToggle manager={manager} t={t} />
           </div>
           <ModeSelect data={data} api={api} onStatus={onStatus} t={t} />

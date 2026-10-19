@@ -1,8 +1,8 @@
 /**
- * 2.1 状态行：后端连接 + 值守状态 + 刷新按钮。
+ * 2.1 状态行：值守状态（语义色圆点 + 文案）+ 刷新按钮。
+ * 圆点颜色按状态映射到官方状态色 class，亮暗主题自动成立。
  */
 import type { AwakeStatus } from '../../types.js'
-import { styles } from './styles.js'
 
 export interface StatusRowProps {
   /** 加载失败时传 null（后端不可达）。 */
@@ -13,35 +13,33 @@ export interface StatusRowProps {
   readonly t: (key: string) => string
 }
 
-/** 值守状态：{ color, text }。 */
-function watchState(data: AwakeStatus | null, loadError: string | null, t: (key: string) => string): { color: string; text: string } {
+/** 状态色调：ok（值守中）/ warn（有任务但未值守）/ error（后端不可达）/ idle（其余）。 */
+type Tone = 'ok' | 'warn' | 'error' | 'idle'
+
+/** 值守状态：{ tone, text }。 */
+function watchState(data: AwakeStatus | null, loadError: string | null, t: (key: string) => string): { tone: Tone; text: string } {
   if (data === null) {
     const suffix = loadError !== null ? `（${loadError}）` : ''
-    return { color: '#dc2626', text: `${t('backendFailed')}${suffix}` }
+    return { tone: 'error', text: `${t('backendFailed')}${suffix}` }
   }
-  if (data.platform === 'unsupported') return { color: '#9ca3af', text: t('unsupported') }
+  if (data.platform === 'unsupported') return { tone: 'idle', text: t('unsupported') }
   if (data.active && data.effective !== null) {
     const modeName = data.modes.find((m) => m.id === data.effective)?.name ?? data.effective
-    return { color: '#22c55e', text: t('watching').replace('{mode}', modeName) }
+    return { tone: 'ok', text: t('watching').replace('{mode}', modeName) }
   }
-  if (data.openTurns > 0) return { color: '#f59e0b', text: t('watchFailed') }
-  return { color: '#9ca3af', text: data.selected === null ? t('off') : t('idle') }
+  if (data.openTurns > 0) return { tone: 'warn', text: t('watchFailed') }
+  return { tone: 'idle', text: data.selected === null ? t('off') : t('idle') }
 }
 
 export function StatusRow({ data, loadError, refreshing, onRefresh, t }: StatusRowProps): React.ReactElement {
   const state = watchState(data, loadError, t)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-        <span style={{ ...styles.dot, background: state.color }} />
-        <span>{state.text}</span>
+    <div className="aw-status">
+      <div className="aw-status-main">
+        <span className={`aw-dot aw-dot-${state.tone}`} />
+        <span className="aw-status-text">{state.text}</span>
       </div>
-      <button
-        type="button"
-        style={{ ...styles.btn, height: 28, padding: '0 12px', ...(refreshing ? styles.disabled : {}) }}
-        disabled={refreshing}
-        onClick={onRefresh}
-      >
+      <button type="button" className="aw-btn aw-btn-secondary aw-btn-sm" disabled={refreshing} onClick={onRefresh}>
         {refreshing ? '…' : `🔄 ${t('refresh')}`}
       </button>
     </div>

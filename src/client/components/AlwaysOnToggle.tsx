@@ -10,7 +10,6 @@
 import { useState } from 'react'
 import type { AwakeStatus } from '../../types.js'
 import type { AwakeApi } from '../api.js'
-import { styles } from './styles.js'
 import { ToggleSwitch } from './ToggleSwitch.js'
 
 export interface AlwaysOnToggleProps {
@@ -43,13 +42,11 @@ export function AlwaysOnToggle({ data, api, onStatus, t }: AlwaysOnToggleProps):
   }
 
   return (
-    <div style={styles.block}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>🛡 {t('alwaysOnLabel')}</div>
-          <div style={styles.muted}>
-            {unavailable ? t('alwaysOnOffModeHint') : t('alwaysOnHint')}
-          </div>
+    <div className="aw-block">
+      <div className="aw-row">
+        <div className="aw-row-main">
+          <div className="aw-row-title">🛡 {t('alwaysOnLabel')}</div>
+          <div className="aw-hint">{unavailable ? t('alwaysOnOffModeHint') : t('alwaysOnHint')}</div>
         </div>
         <ToggleSwitch
           checked={data.alwaysOn}
@@ -59,9 +56,9 @@ export function AlwaysOnToggle({ data, api, onStatus, t }: AlwaysOnToggleProps):
           labelOff={t('offShort')}
         />
       </div>
-      {saving && <div style={{ ...styles.muted, marginTop: 8 }}>{t('saving')}</div>}
+      {saving && <div className="aw-muted">{t('saving')}</div>}
       {error !== null && (
-        <div style={{ ...styles.error, marginTop: 8 }}>❌ {t('alwaysOnSaveFailed').replace('{message}', error)}</div>
+        <div className="aw-error">❌ {t('alwaysOnSaveFailed').replace('{message}', error)}</div>
       )}
     </div>
   )

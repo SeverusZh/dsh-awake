@@ -78,7 +78,7 @@ src/
 构建管线（对齐 win-mgr）：`tsconfig.{base,host,client}.json` + `tsdown.{host,client}.config.ts`
 + vitest。host 打 ESM 单文件；client 打 `window.__ModuleLoader__.load` CJS 工厂壳。
 
-## 2. 方式子系统（src/modes）
+## 2. 方式子系统
 
 ### 2.1 方式接口
 
@@ -116,7 +116,7 @@ export interface ModeSession {
 }
 ```
 
-### 2.2 配置字段描述符（动态 schema，纯数据不写 TSX）
+### 2.2 配置字段描述符
 
 ```ts
 export type ConfigField =
@@ -150,7 +150,7 @@ export const linuxRegistry = {
 
 ## 3. host 半
 
-### 3.1 协调器（coordinator.ts）——保留现有引用计数，加回退链
+### 3.1 协调器
 
 - `ctx.on('session/event')`：`turn/start` 0→1 拿锁，`turn/end` 1→0 放锁（跨会话引用计数保留）。
 - **常开防休眠（`alwaysOn`）**：**纯内存状态**（host 服务字段，不写配置文件，
@@ -171,7 +171,7 @@ export const linuxRegistry = {
 - 设置变更（settings/updated）→ 若 `openTurns > 0` 则先放锁再按新配置拿锁（对账）。
 - 插件卸载 → 无条件放锁（effect disposer，保留现状）。
 
-### 3.2 配置（DSH 0.1.7：插件 Config schema + configEditor）
+### 3.2 配置与 configEditor
 
 > **0.2.2 重写**：0.1.7 移除了 `settings.register(ns, schema, {base})` / `settings.get(ns)`
 > （旧 `SettingsProvider`）。设置改为「插件 Config」单层——插件的 Config schema 就是权威
@@ -208,7 +208,7 @@ config:             # 该方式的配置；多数方式为空 {}，字段由方�
   off 语义、迁移都保留）；差异是写入落点从 settings.yaml 变为 profile 插件配置，且
   config 写入经 loader 的 volatile 通道（不重启插件、内存态 alwaysOn 保留）。
 
-### 3.3 数据面路由（rpc.ts）
+### 3.3 数据面路由
 
 - 路由：`POST /api/dsh-awake`（host `connection.fetch.register`，client 同源 `fetch`）。
   请求体 `{ method, payload }`，响应体 `RpcResult`（`src/types.ts` 的 `RpcRequest`）。
@@ -234,7 +234,7 @@ config:             # 该方式的配置；多数方式为空 {}，字段由方�
   `ctx.inject(['connection'], …)` 等它出现再注册；插件 export `inject` 为空，
   因此 headless / tui 档位照常值守，只是没有设置页数据面。
 
-### 3.4 跨半线格式（types.ts）
+### 3.4 跨半线格式
 
 ```ts
 export interface AwakeStatus {
@@ -258,9 +258,9 @@ export interface ModeInfo {
 export interface AttemptLog { id: string; ok: boolean; reason?: string }
 ```
 
-## 4. client 半（设置页）
+## 4. client 半
 
-### 4.1 注册（settings.section，对齐 dsh-pocket）
+### 4.1 注册 settings.section
 
 ```ts
 export const inject = ['slots', 'sessions', 'locale']
@@ -273,7 +273,7 @@ export const inject = ['slots', 'sessions', 'locale']
 - `sessions`：2.3 浏览器 Wake Lock 需要"是否有任务在运行"（保留现有 WakeLockManager 逻辑）。
 - `locale`：zh 基准 + en 可后补（结构预留，先只填 zh 也行）。
 
-### 4.2 页面布局（2.1–2.4 全部确认项）
+### 4.2 页面布局
 
 ```
 ┌─ 防休眠（settings.section 标签）──────────────────────────┐
@@ -283,7 +283,7 @@ export const inject = ['slots', 'sessions', 'locale']
 │ ❌ 防休眠未能生效：systemd-inhibit 未找到；gnome-gsettings │  ← 提示区（红）
 │    执行失败（退出码 1）                                   │
 │ ──────────────────────────────────────────────────────   │
-│ 📦 新版本 v0.2.1（当前 v0.2.0）               [一键更新]  │  ← 2.2 更新卡片（仅新版）
+│ 📦 新版本 v0.2.6（当前 v0.2.5）               [一键更新]  │  ← 2.2 更新卡片（仅新版）
 │ ──────────────────────────────────────────────────────   │
 │ 为当前浏览器开启页面防休眠                     [开/关]    │  ← 2.3 浏览器开关
 │ （不写入配置文件，仅本浏览器生效）                         │
@@ -304,8 +304,11 @@ export const inject = ['slots', 'sessions', 'locale']
   用户选 `off` → 不提示。
 - 2.3：`localStorage['dsh-awake.webWakeLock']` 默认 `true`，仅控制浏览器 Wake Lock，
   与 2.4 完全独立。
+- 视觉层：设置页样式由一份随插件卸载清理的 `<style data-plugin>` 注入，颜色 / 字体 /
+  圆角 / 阴影全部使用官方 `--dsw-*` 令牌；开关、按钮、输入框、通知条共用 `aw-*`
+  样式体系，hover / focus-visible 等交互态由真实 CSS 规则表达，亮暗主题一致。
 
-### 4.3 更新卡片（移植 dsh-pocket，已确认一键更新）
+### 4.3 更新卡片
 
 - 参考`dsh-pocket`样式，位置`/home/htfc786/.dsh/profiles/web/node_modules/dsh-pocket/`
 - host 暴露 `{ current, loaded }`（current = 磁盘包版本，loaded = 运行中版本）。
@@ -315,7 +318,7 @@ export const inject = ['slots', 'sessions', 'locale']
   （"重启生效"按钮）/ 失败（显示输出）。
 - `desktop === true`：不渲染（更新由 DSH Desktop 管理）。
 
-## 5. 构建与工程化（对齐 win-mgr）
+## 5. 构建与工程化
 
 - `tsconfig.base.json` + `tsconfig.host.json`（node）+ `tsconfig.client.json`（browser，含 JSX）。
 - `tsdown.host.config.ts`：host 半 → `lib/index.js`（ESM 单文件）。
@@ -326,7 +329,7 @@ export const inject = ['slots', 'sessions', 'locale']
   isAvailable/start/stop）、协调器引用计数与回退链、compareVersions、stale 检测、
   描述符→表单渲染；集成：看门狗进程测试（保留）、数据面路由往返。
 
-## 6. 迁移（0.1.1 → 0.2.0）
+## 6. 迁移
 
 - 旧配置 `{ enabled, shellWakeLock, powerCfgWakeLock, webWakeLock, why }`：
   - `webWakeLock` → 浏览器 localStorage（默认开），settings.yaml 旧字段删除；
@@ -346,7 +349,7 @@ export const inject = ['slots', 'sessions', 'locale']
 4. **client**：api.ts + 5 个组件 + settings.section 注册 + WakeLockManager 接 localStorage。
 5. **收尾**：迁移逻辑 + README + 版本 bump + 打包验证（`pnpm build` + 装进测试 profile 验收）。
 
-## 8. 待确认的小点（未阻塞，默认值如下）
+## 8. 待确认的小点
 
 - 回退序列先 `isAvailable()` 预检再 `start()`（预检省得真启动；运行时变化由 start 失败兜底）。✔ 采用
 - 平台锚点与"mode 找不到"双保险（锚点用于提示文案，找不到作为兜底，解析同一条逻辑）。✔ 采用

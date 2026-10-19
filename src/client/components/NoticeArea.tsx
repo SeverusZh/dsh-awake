@@ -7,9 +7,11 @@
  *   - effective === null && attempts 全失败 → 红（列每个原因）；
  *   - 用户选 off → 不提示；
  *   - 无任务运行（openTurns=0 且未值守）时不展示拿锁结果，避免残留噪音。
+ *
+ * 视觉：统一的通知条体系（语义色描边 + 8% 语义色底 + 语义色标题，正文次级色），
+ * 不再用写死的色值或粗左边框。
  */
 import type { AwakeStatus } from '../../types.js'
-import { styles } from './styles.js'
 
 export interface NoticeAreaProps {
   readonly data: AwakeStatus
@@ -32,8 +34,8 @@ export function NoticeArea({ data, t }: NoticeAreaProps): React.ReactElement | n
             .replace('{mode}', data.configured.mode ?? '?')
             .replace('{default}', defaultModeName(data))
     return (
-      <div style={{ ...noticeBox, borderLeftColor: '#b45309', background: 'rgba(180, 83, 9, 0.08)' }}>
-        <span style={{ color: 'var(--dsw-alias-state-warn-primary,#b45309)' }}>⚠ {text}</span>
+      <div className="aw-notice aw-notice-warn">
+        <span className="aw-notice-title">⚠ {text}</span>
       </div>
     )
   }
@@ -50,11 +52,9 @@ export function NoticeArea({ data, t }: NoticeAreaProps): React.ReactElement | n
     const modeName = data.modes.find((m) => m.id === data.effective)?.name ?? data.effective
     const reason = failures.map((f) => f.reason ?? f.id).join('；')
     return (
-      <div style={{ ...noticeBox, borderLeftColor: '#b45309', background: 'rgba(180, 83, 9, 0.08)' }}>
-        <span style={{ color: 'var(--dsw-alias-state-warn-primary,#b45309)' }}>
-          ⚠ {t('fallbackActive').replace('{mode}', modeName)}
-        </span>
-        <div style={styles.muted}>{t('fallbackReason').replace('{reason}', reason)}</div>
+      <div className="aw-notice aw-notice-warn">
+        <span className="aw-notice-title">⚠ {t('fallbackActive').replace('{mode}', modeName)}</span>
+        <div className="aw-notice-detail">{t('fallbackReason').replace('{reason}', reason)}</div>
       </div>
     )
   }
@@ -62,10 +62,10 @@ export function NoticeArea({ data, t }: NoticeAreaProps): React.ReactElement | n
   if (data.effective === null && failures.length === attempts.length) {
     // 红：全部失败，列每个原因。
     return (
-      <div style={{ ...noticeBox, borderLeftColor: '#dc2626', background: 'rgba(220, 38, 38, 0.08)' }}>
-        <span style={{ color: 'var(--dsw-alias-state-error-primary,#dc2626)' }}>❌ {t('allFailed')}</span>
+      <div className="aw-notice aw-notice-error">
+        <span className="aw-notice-title">❌ {t('allFailed')}</span>
         {attempts.map((a) => (
-          <div key={a.id} style={{ color: 'var(--dsw-alias-state-error-primary,#dc2626)', fontSize: 12, lineHeight: 1.5 }}>
+          <div key={a.id} className="aw-notice-detail-error">
             {a.id}
             {a.reason !== undefined ? `：${a.reason}` : ''}
           </div>
@@ -75,15 +75,6 @@ export function NoticeArea({ data, t }: NoticeAreaProps): React.ReactElement | n
   }
 
   return null
-}
-
-const noticeBox: React.CSSProperties = {
-  borderLeft: '4px solid',
-  borderRadius: 8,
-  marginTop: 12,
-  padding: '10px 12px',
-  fontSize: 12,
-  lineHeight: 1.6,
 }
 
 /** 当前平台默认方式名（提示文案用）。 */
